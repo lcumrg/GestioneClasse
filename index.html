@@ -12,7 +12,7 @@
             grid-template-columns: repeat(3, 1fr); /* 3 Grandi colonne (coppie di banchi) */
             gap: 2rem; /* Corridoi ampi */
         }
-        
+
         .desk-pair {
             display: grid;
             grid-template-columns: 1fr 1fr; /* 2 Banchi vicini */
@@ -40,7 +40,7 @@
             border: 2px dashed #cbd5e1;
             background: transparent;
         }
-        
+
         .stamp-dot {
             width: 10px;
             height: 10px;
@@ -55,7 +55,7 @@
         /* Stili per la stampa del report */
         @media print {
             body { background: white; color: black; }
-            #app, #student-modal { display: none !important; }
+            #app, #student-modal, #login-screen, #loading-screen { display: none !important; }
             #print-area { display: block !important; }
             @page { margin: 2cm; }
         }
@@ -86,29 +86,64 @@
         </table>
     </div>
 
-    <div id="app" class="max-w-7xl mx-auto p-4 md:p-6 print:hidden">
+    <!-- Schermata di Login -->
+    <div id="login-screen" class="min-h-screen flex items-center justify-center bg-slate-50 print:hidden">
+        <div class="bg-white p-8 rounded-2xl shadow-lg border border-slate-200 max-w-sm w-full mx-4">
+            <div class="text-center mb-6">
+                <h1 class="text-2xl font-bold text-slate-800 mb-1">Gestione Classe</h1>
+                <p class="text-slate-500 text-sm">Accedi per gestire la tua classe</p>
+            </div>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Email</label>
+                    <input type="email" id="login-email" class="w-full px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm" placeholder="La tua email">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Password</label>
+                    <input type="password" id="login-password" class="w-full px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm" placeholder="La tua password" onkeydown="if(event.key==='Enter') handleLogin()">
+                </div>
+                <div id="login-error" class="text-red-600 text-sm font-medium hidden"></div>
+                <button id="login-btn" onclick="handleLogin()" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed text-sm">
+                    Accedi
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Schermata di Caricamento -->
+    <div id="loading-screen" class="hidden min-h-screen flex flex-col items-center justify-center bg-slate-50 print:hidden">
+        <div class="animate-spin rounded-full h-10 w-10 border-4 border-slate-200 border-t-indigo-600 mb-4"></div>
+        <p class="text-slate-500 text-sm">Caricamento dati...</p>
+    </div>
+
+    <!-- App Principale (nascosta fino al login) -->
+    <div id="app" class="hidden max-w-7xl mx-auto p-4 md:p-6 print:hidden">
         <!-- Header -->
         <header class="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
                 <h1 class="text-2xl font-bold text-slate-800">Gestione Classe</h1>
                 <p class="text-slate-500 text-sm">Monitoraggio comportamenti e timbri</p>
             </div>
-            
+
             <div class="flex flex-wrap gap-2">
                 <!-- Input file nascosto per l'importazione -->
                 <input type="file" id="import-input" accept=".json" class="hidden" onchange="app.importData(this)">
-                
+
                 <button onclick="document.getElementById('import-input').click()" class="px-3 py-2 bg-slate-100 border border-slate-300 hover:bg-slate-200 rounded-lg text-sm font-medium transition flex items-center gap-1">
                     📂 Importa
                 </button>
                 <button onclick="app.exportData()" class="px-3 py-2 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg text-sm font-medium shadow-sm transition flex items-center gap-1">
-                    💾 Salva
+                    💾 Salva JSON
                 </button>
                 <button onclick="app.printReport()" class="px-3 py-2 bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 rounded-lg text-sm font-medium transition flex items-center gap-1">
                     🖨️ Report
                 </button>
-                <button onclick="app.resetData()" class="ml-2 px-3 py-2 bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 rounded-lg text-sm font-medium transition">
+                <button onclick="app.resetData()" class="px-3 py-2 bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 rounded-lg text-sm font-medium transition">
                     ⚠️ Reset
+                </button>
+                <button onclick="handleLogout()" class="px-3 py-2 bg-slate-700 hover:bg-slate-800 text-white rounded-lg text-sm font-medium transition flex items-center gap-1">
+                    🔒 Esci
                 </button>
             </div>
         </header>
@@ -123,6 +158,11 @@
             <div class="text-slate-500">5 Timbri = 1 Nota ⭐ | 3 Note = +0.5 Bonus 🎓</div>
         </div>
 
+        <!-- Indicatore salvataggio cloud -->
+        <div id="save-indicator" class="hidden fixed bottom-4 right-4 bg-green-600 text-white text-xs font-medium px-3 py-1.5 rounded-full shadow-lg z-40 transition-opacity duration-300">
+            Salvato nel cloud
+        </div>
+
         <!-- Mappa A Visualizzazione Banchi -->
         <div id="classroom-container" class="space-y-4">
             <!-- Le righe verranno generate qui via JS -->
@@ -133,7 +173,7 @@
     <!-- Modal Dettaglio Studente -->
     <div id="student-modal" class="fixed inset-0 bg-black/60 hidden flex items-center justify-center p-4 z-50 backdrop-blur-sm print:hidden">
         <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl transform transition-all">
-            
+
             <!-- Intestazione Modal con Edit Nome -->
             <div class="flex justify-between items-start mb-4">
                 <div class="w-full mr-4">
@@ -142,7 +182,7 @@
                         <h2 id="modal-student-name" class="text-xl font-bold text-slate-800">Nome</h2>
                         <!-- Input Edit (nascosto di default) -->
                         <input type="text" id="modal-edit-name" class="hidden w-full text-xl font-bold border-b-2 border-indigo-500 outline-none p-0" onblur="app.saveNameChange()" onkeydown="if(event.key === 'Enter') this.blur()">
-                        
+
                         <!-- Bottone Edit -->
                         <button onclick="app.toggleEditName()" class="text-slate-400 hover:text-indigo-600 transition p-1">
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
@@ -193,7 +233,7 @@
                         <div id="modal-stamp-progress" class="bg-indigo-500 h-full transition-all duration-300" style="width: 0%"></div>
                     </div>
                 </div>
-                
+
                 <div class="flex justify-between items-center bg-indigo-50 p-3 rounded-lg border border-indigo-100">
                     <span class="text-sm text-indigo-800 font-medium">Note di Merito</span>
                     <div class="flex items-center gap-2">
@@ -209,16 +249,81 @@
         </div>
     </div>
 
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+
     <script>
-        // Dati iniziali basati sulla mappa caricata
-        // Layout: 4 righe, 3 gruppi da 2 banchi ciascuna.
-        // Ordine: Riga 1 (sx -> dx), Riga 2...
+        // =============================================
+        // CONFIGURAZIONE FIREBASE
+        // =============================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyCLjxyfcxopSW1q73F2SDoB6DPxYQPI57s",
+            authDomain: "gestioneclasse.firebaseapp.com",
+            projectId: "gestioneclasse",
+            storageBucket: "gestioneclasse.firebasestorage.app",
+            messagingSenderId: "983905478990",
+            appId: "1:983905478990:web:9b3ecd07ce51dd30b3961f"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        // Abilita persistenza offline (i dati funzionano anche senza internet)
+        db.enablePersistence({ synchronizeTabs: true }).catch(err => {
+            console.log('Persistenza offline non disponibile:', err.code);
+        });
+
+        // =============================================
+        // AUTENTICAZIONE
+        // =============================================
+        async function handleLogin() {
+            const email = document.getElementById('login-email').value.trim();
+            const password = document.getElementById('login-password').value;
+            const errorDiv = document.getElementById('login-error');
+            const btn = document.getElementById('login-btn');
+
+            if (!email || !password) {
+                errorDiv.textContent = 'Inserisci email e password.';
+                errorDiv.classList.remove('hidden');
+                return;
+            }
+
+            errorDiv.classList.add('hidden');
+            btn.disabled = true;
+            btn.textContent = 'Accesso in corso...';
+
+            try {
+                await auth.signInWithEmailAndPassword(email, password);
+            } catch (err) {
+                let msg = 'Email o password errati. Riprova.';
+                if (err.code === 'auth/too-many-requests') {
+                    msg = 'Troppi tentativi. Riprova tra qualche minuto.';
+                }
+                errorDiv.textContent = msg;
+                errorDiv.classList.remove('hidden');
+                btn.disabled = false;
+                btn.textContent = 'Accedi';
+            }
+        }
+
+        function handleLogout() {
+            if (confirm('Vuoi uscire?')) {
+                auth.signOut();
+            }
+        }
+
+        // =============================================
+        // DATI INIZIALI (mappa di default della classe)
+        // =============================================
         const INITIAL_MAP = [
             // RIGA 1
-            { name: "Raif", pos: "R1-A1" }, { name: "Yerymiuchuck", pos: "R1-A2" }, // Gruppo 1
-            { name: "Montalto", pos: "R1-B1" }, { name: "Morillo", pos: "R1-B2" },   // Gruppo 2
-            { name: "Bicaj", pos: "R1-C1" }, { name: "", pos: "R1-C2" },             // Gruppo 3
-            
+            { name: "Raif", pos: "R1-A1" }, { name: "Yerymiuchuck", pos: "R1-A2" },
+            { name: "Montalto", pos: "R1-B1" }, { name: "Morillo", pos: "R1-B2" },
+            { name: "Bicaj", pos: "R1-C1" }, { name: "", pos: "R1-C2" },
+
             // RIGA 2
             { name: "Bianchin", pos: "R2-A1" }, { name: "Talha", pos: "R2-A2" },
             { name: "Mbengue", pos: "R2-B1" }, { name: "Spahiu", pos: "R2-B2" },
@@ -235,66 +340,116 @@
             { name: "Moretto", pos: "R4-C1" }, { name: "Antonel", pos: "R4-C2" },
         ];
 
+        // =============================================
+        // APP PRINCIPALE
+        // =============================================
         class ClassroomApp {
-            constructor() {
-                this.loadData();
+            constructor(userId) {
+                this.userId = userId;
+                this.students = [];
                 this.activeStudentId = null;
-                this.init();
             }
 
-            loadData() {
-                const stored = localStorage.getItem('classroom_data_v2');
-                if (stored) {
-                    this.students = JSON.parse(stored);
-                } else {
-                    // Inizializza con la mappa specifica
-                    this.students = INITIAL_MAP.map((s, index) => ({
-                        id: index + 1,
-                        name: s.name,
-                        pos: s.pos,
-                        stamps: 0,
-                        merits: 0,
-                        atSeat: true,
-                        isPlaceholder: s.name === ""
-                    }));
+            async loadData() {
+                try {
+                    const doc = await db.collection('classrooms').doc(this.userId).get();
+
+                    if (doc.exists && doc.data().students) {
+                        this.students = doc.data().students;
+                    } else {
+                        // Controlla se ci sono dati nel vecchio localStorage (migrazione)
+                        const stored = localStorage.getItem('classroom_data_v2');
+                        if (stored) {
+                            this.students = JSON.parse(stored);
+                            // Migra i dati al cloud
+                            await this.saveToFirestore();
+                            // Rimuovi il vecchio dato locale dopo migrazione riuscita
+                            localStorage.removeItem('classroom_data_v2');
+                        } else {
+                            // Prima volta in assoluto: usa la mappa iniziale
+                            this.students = INITIAL_MAP.map((s, index) => ({
+                                id: index + 1,
+                                name: s.name,
+                                pos: s.pos,
+                                stamps: 0,
+                                merits: 0,
+                                atSeat: true,
+                                isPlaceholder: s.name === ""
+                            }));
+                            await this.saveToFirestore();
+                        }
+                    }
+                } catch (err) {
+                    console.error('Errore caricamento dati:', err);
+                    // Fallback: prova localStorage
+                    const stored = localStorage.getItem('classroom_data_v2');
+                    if (stored) {
+                        this.students = JSON.parse(stored);
+                    } else {
+                        this.students = INITIAL_MAP.map((s, index) => ({
+                            id: index + 1, name: s.name, pos: s.pos,
+                            stamps: 0, merits: 0, atSeat: true,
+                            isPlaceholder: s.name === ""
+                        }));
+                    }
                 }
+
+                this.renderMap();
+                this.setupEventListeners();
             }
 
-            init() {
-                this.renderMap();
+            setupEventListeners() {
                 window.addEventListener('click', (e) => {
                     if (e.target.id === 'student-modal') this.closeModal();
                 });
             }
 
+            // Mostra un breve feedback visivo di salvataggio
+            showSaveIndicator() {
+                const indicator = document.getElementById('save-indicator');
+                indicator.classList.remove('hidden');
+                clearTimeout(this._saveTimeout);
+                this._saveTimeout = setTimeout(() => {
+                    indicator.classList.add('hidden');
+                }, 1500);
+            }
+
+            saveToFirestore() {
+                return db.collection('classrooms').doc(this.userId).set({
+                    students: this.students,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                }).then(() => {
+                    this.showSaveIndicator();
+                }).catch(err => {
+                    console.error('Errore salvataggio cloud:', err);
+                });
+            }
+
             save() {
-                localStorage.setItem('classroom_data_v2', JSON.stringify(this.students));
                 this.renderMap();
+                // Salva nel cloud (fire and forget - la UI si aggiorna subito)
+                this.saveToFirestore();
             }
 
             renderMap() {
                 const container = document.getElementById('classroom-container');
                 container.innerHTML = '';
 
-                // Dividiamo gli studenti in righe (6 studenti per riga)
                 for (let r = 0; r < 4; r++) {
                     const rowDiv = document.createElement('div');
                     rowDiv.className = 'classroom-layout';
-                    
-                    // Creiamo 3 gruppi di banchi per ogni riga
+
                     for (let g = 0; g < 3; g++) {
                         const groupDiv = document.createElement('div');
                         groupDiv.className = 'desk-pair';
-                        
-                        // Prendiamo i 2 studenti per questo gruppo
-                        // Indice base = (Riga * 6) + (Gruppo * 2)
+
                         const baseIdx = (r * 6) + (g * 2);
                         const s1 = this.students[baseIdx];
                         const s2 = this.students[baseIdx + 1];
 
                         groupDiv.appendChild(this.createStudentCard(s1));
                         groupDiv.appendChild(this.createStudentCard(s2));
-                        
+
                         rowDiv.appendChild(groupDiv);
                     }
                     container.appendChild(rowDiv);
@@ -304,11 +459,11 @@
             createStudentCard(s) {
                 const card = document.createElement('div');
                 const isEmpty = s.name === "" || s.isPlaceholder;
-                
-                card.className = `student-card p-3 rounded-lg border cursor-pointer relative shadow-sm flex flex-col justify-between 
-                    ${!s.atSeat ? 'off-seat border-slate-300' : 'bg-white border-slate-200 hover:border-indigo-300 hover:shadow-md'} 
+
+                card.className = `student-card p-3 rounded-lg border cursor-pointer relative shadow-sm flex flex-col justify-between
+                    ${!s.atSeat ? 'off-seat border-slate-300' : 'bg-white border-slate-200 hover:border-indigo-300 hover:shadow-md'}
                     ${isEmpty ? 'empty-desk' : ''}`;
-                
+
                 card.onclick = () => this.openModal(s.id);
 
                 if (isEmpty) {
@@ -348,27 +503,25 @@
             openModal(id) {
                 this.activeStudentId = id;
                 const s = this.students.find(x => x.id === id);
-                
-                // Reset edit mode
+
                 document.getElementById('modal-student-name').classList.remove('hidden');
                 document.getElementById('modal-edit-name').classList.add('hidden');
-                
+
                 const displayName = s.name === "" ? "Posto Vuoto" : s.name;
                 document.getElementById('modal-student-name').innerText = displayName;
-                document.getElementById('modal-edit-name').value = s.name; // Value is actual name (can be empty)
-                
+                document.getElementById('modal-edit-name').value = s.name;
+
                 document.getElementById('modal-student-pos').innerText = `ID Mappa: ${id}`;
                 document.getElementById('modal-at-seat').checked = s.atSeat;
-                
+
                 document.getElementById('student-modal').classList.remove('hidden');
                 this.updateModalUI();
             }
 
-            // Funzioni per modificare il nome
             toggleEditName() {
                 const nameDisplay = document.getElementById('modal-student-name');
                 const nameInput = document.getElementById('modal-edit-name');
-                
+
                 if (nameInput.classList.contains('hidden')) {
                     nameDisplay.classList.add('hidden');
                     nameInput.classList.remove('hidden');
@@ -381,23 +534,21 @@
             saveNameChange() {
                 const s = this.students.find(x => x.id === this.activeStudentId);
                 const newName = document.getElementById('modal-edit-name').value.trim();
-                
+
                 s.name = newName;
                 s.isPlaceholder = (newName === "");
-                
-                // UI toggle back
+
                 document.getElementById('modal-student-name').innerText = newName === "" ? "Posto Vuoto" : newName;
                 document.getElementById('modal-student-name').classList.remove('hidden');
                 document.getElementById('modal-edit-name').classList.add('hidden');
-                
-                this.save(); // Salva e aggiorna la griglia sotto
+
+                this.save();
             }
 
             updateModalUI() {
                 const s = this.students.find(x => x.id === this.activeStudentId);
                 const isEmpty = s.name === "" || s.isPlaceholder;
 
-                // Aggiorna testo presenza
                 const presenceText = document.getElementById('presence-text');
                 if (isEmpty) {
                      presenceText.innerText = "Posto non assegnato";
@@ -411,15 +562,13 @@
                 document.getElementById('modal-current-stamps').innerText = `${s.stamps} / 5`;
                 document.getElementById('modal-merits').innerText = s.merits;
                 document.getElementById('modal-stamp-progress').style.width = `${(s.stamps / 5) * 100}%`;
-                
-                // Colore barra progresso
+
                 const bar = document.getElementById('modal-stamp-progress');
                 if (s.stamps === 4) bar.classList.replace('bg-indigo-500', 'bg-amber-500');
                 else bar.classList.replace('bg-amber-500', 'bg-indigo-500');
 
                 document.getElementById('bonus-badge').classList.toggle('hidden', s.merits < 3);
 
-                // Disabilita tasti se non al posto o se vuoto
                 const buttonsDisabled = !s.atSeat || isEmpty;
                 document.querySelectorAll('.action-btn').forEach(btn => {
                     btn.disabled = buttonsDisabled;
@@ -432,7 +581,6 @@
             }
 
             closeModal() {
-                // Ensure edit mode is closed correctly before closing modal
                 if (!document.getElementById('modal-edit-name').classList.contains('hidden')) {
                     this.saveNameChange();
                 }
@@ -456,7 +604,6 @@
                 if (s.stamps >= 5) {
                     s.stamps = 0;
                     s.merits += 1;
-                    // Piccolo effetto "confetti" visuale o alert potrebbe andare qui
                 }
 
                 this.updateModalUI();
@@ -471,10 +618,10 @@
                         s.atSeat = true;
                     });
                     this.save();
-                    this.closeModal(); // Chiude se aperto
+                    this.closeModal();
                 }
             }
-            
+
             exportData() {
                 const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.students, null, 2));
                 const downloadAnchorNode = document.createElement('a');
@@ -496,7 +643,7 @@
                         if (Array.isArray(data)) {
                             this.students = data;
                             this.save();
-                            alert("Dati importati con successo!");
+                            alert("Dati importati con successo e salvati nel cloud!");
                         } else {
                             alert("Formato file non valido.");
                         }
@@ -504,8 +651,7 @@
                         alert("Errore durante la lettura del file.");
                         console.error(err);
                     }
-                    // Reset input per permettere di ricaricare lo stesso file se necessario
-                    input.value = ''; 
+                    input.value = '';
                 };
                 reader.readAsText(file);
             }
@@ -517,7 +663,6 @@
                 const tbody = document.getElementById('print-table-body');
                 tbody.innerHTML = '';
 
-                // Filtra solo gli studenti reali (ignora i posti vuoti) e ordina alfabeticamente
                 const activeStudents = this.students
                     .filter(s => s.name && s.name !== "" && !s.isPlaceholder)
                     .sort((a, b) => a.name.localeCompare(b.name));
@@ -528,7 +673,7 @@
                     activeStudents.forEach(s => {
                         const tr = document.createElement('tr');
                         const bonusText = s.merits >= 3 ? '✅ +0.5 Punti' : '-';
-                        
+
                         tr.innerHTML = `
                             <td>${s.name}</td>
                             <td>${s.stamps}</td>
@@ -539,12 +684,43 @@
                     });
                 }
 
-                // Avvia la stampa
                 window.print();
             }
         }
 
-        const app = new ClassroomApp();
+        // =============================================
+        // OSSERVATORE STATO AUTENTICAZIONE
+        // =============================================
+        let app = null;
+
+        auth.onAuthStateChanged(async (user) => {
+            const loginScreen = document.getElementById('login-screen');
+            const loadingScreen = document.getElementById('loading-screen');
+            const appDiv = document.getElementById('app');
+
+            if (user) {
+                // Utente autenticato: carica l'app
+                loginScreen.classList.add('hidden');
+                loadingScreen.classList.remove('hidden');
+                appDiv.classList.add('hidden');
+
+                app = new ClassroomApp(user.uid);
+                await app.loadData();
+
+                loadingScreen.classList.add('hidden');
+                appDiv.classList.remove('hidden');
+            } else {
+                // Non autenticato: mostra login
+                appDiv.classList.add('hidden');
+                loadingScreen.classList.add('hidden');
+                loginScreen.classList.remove('hidden');
+
+                if (app) {
+                    app.closeModal();
+                    app = null;
+                }
+            }
+        });
     </script>
 </body>
 </html>
