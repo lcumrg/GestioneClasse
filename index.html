@@ -41,6 +41,24 @@
             background: transparent;
         }
 
+        .student-card.swap-source {
+            ring: 3px;
+            outline: 3px solid #6366f1;
+            outline-offset: 2px;
+            background-color: #eef2ff !important;
+        }
+        .student-card.swap-target {
+            outline: 2px dashed #6366f1;
+            outline-offset: 2px;
+        }
+        .swap-banner {
+            animation: pulse-border 1.5s infinite;
+        }
+        @keyframes pulse-border {
+            0%, 100% { border-color: #6366f1; }
+            50% { border-color: #a5b4fc; }
+        }
+
         .stamp-dot {
             width: 10px;
             height: 10px;
@@ -55,7 +73,7 @@
         /* Stili per la stampa del report */
         @media print {
             body { background: white; color: black; }
-            #app, #student-modal, #login-screen, #loading-screen { display: none !important; }
+            #app, #student-modal, #reset-modal, #login-screen, #loading-screen { display: none !important; }
             #print-area { display: block !important; }
             @page { margin: 2cm; }
         }
@@ -75,15 +93,17 @@
             <thead>
                 <tr>
                     <th>Studente</th>
-                    <th>Timbri Attuali (su 5)</th>
-                    <th>Note di Merito ⭐</th>
-                    <th>Bonus Maturato</th>
+                    <th>Posto</th>
+                    <th>Timbri (su 5)</th>
+                    <th>Note di Merito</th>
+                    <th>Bonus +0.5</th>
                 </tr>
             </thead>
             <tbody id="print-table-body">
                 <!-- Righe generate via JS -->
             </tbody>
         </table>
+        <div id="print-summary" class="mt-6 text-sm text-gray-700"></div>
     </div>
 
     <!-- Schermata di Login -->
@@ -127,19 +147,10 @@
             </div>
 
             <div class="flex flex-wrap gap-2">
-                <!-- Input file nascosto per l'importazione -->
-                <input type="file" id="import-input" accept=".json" class="hidden" onchange="app.importData(this)">
-
-                <button onclick="document.getElementById('import-input').click()" class="px-3 py-2 bg-slate-100 border border-slate-300 hover:bg-slate-200 rounded-lg text-sm font-medium transition flex items-center gap-1">
-                    📂 Importa
-                </button>
-                <button onclick="app.exportData()" class="px-3 py-2 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg text-sm font-medium shadow-sm transition flex items-center gap-1">
-                    💾 Salva JSON
-                </button>
                 <button onclick="app.printReport()" class="px-3 py-2 bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 rounded-lg text-sm font-medium transition flex items-center gap-1">
                     🖨️ Report
                 </button>
-                <button onclick="app.resetData()" class="px-3 py-2 bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 rounded-lg text-sm font-medium transition">
+                <button onclick="app.confirmReset()" class="px-3 py-2 bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 rounded-lg text-sm font-medium transition">
                     ⚠️ Reset
                 </button>
                 <button onclick="handleLogout()" class="px-3 py-2 bg-slate-700 hover:bg-slate-800 text-white rounded-lg text-sm font-medium transition flex items-center gap-1">
@@ -163,11 +174,32 @@
             Salvato nel cloud
         </div>
 
+        <!-- Banner modalità scambio -->
+        <div id="swap-banner" class="hidden mb-4 p-3 bg-violet-50 border-2 border-violet-300 rounded-lg text-center swap-banner">
+            <p class="text-sm font-medium text-violet-800">Seleziona il posto di destinazione per <b id="swap-student-name"></b></p>
+            <button onclick="app.cancelSwap()" class="mt-2 px-3 py-1 bg-white border border-violet-300 text-violet-700 hover:bg-violet-100 rounded text-xs font-medium transition">Annulla spostamento</button>
+        </div>
+
         <!-- Mappa A Visualizzazione Banchi -->
         <div id="classroom-container" class="space-y-4">
             <!-- Le righe verranno generate qui via JS -->
         </div>
 
+    </div>
+
+    <!-- Modal Conferma Reset -->
+    <div id="reset-modal" class="fixed inset-0 bg-black/60 hidden flex items-center justify-center p-4 z-50 backdrop-blur-sm print:hidden">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl">
+            <h2 class="text-lg font-bold text-red-700 mb-2">Conferma Reset</h2>
+            <p class="text-sm text-slate-600 mb-1">Questa operazione cancella <b>tutti i timbri e le note</b> di tutti gli studenti.</p>
+            <p class="text-sm text-slate-600 mb-4">I nomi e le posizioni verranno mantenuti.</p>
+            <p class="text-sm font-medium text-slate-700 mb-2">Per confermare, digita <b class="text-red-600">RESET</b> nel campo sottostante:</p>
+            <input type="text" id="reset-confirm-input" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-sm mb-4" placeholder="Digita RESET qui...">
+            <div class="flex gap-2">
+                <button onclick="app.cancelReset()" class="flex-1 px-3 py-2 bg-slate-100 border border-slate-300 hover:bg-slate-200 rounded-lg text-sm font-medium transition">Annulla</button>
+                <button onclick="app.executeReset()" class="flex-1 px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition">Conferma Reset</button>
+            </div>
+        </div>
     </div>
 
     <!-- Modal Dettaglio Studente -->
@@ -204,6 +236,13 @@
                     </div>
                     <span class="ml-3 text-sm font-medium text-slate-700" id="presence-text">Al proprio posto</span>
                 </label>
+            </div>
+
+            <!-- Pulsante Sposta Posto -->
+            <div id="swap-section" class="mb-4">
+                <button onclick="app.startSwap()" id="swap-btn" class="w-full px-3 py-2.5 bg-violet-50 border border-violet-200 text-violet-700 hover:bg-violet-100 rounded-lg text-sm font-medium transition flex items-center justify-center gap-2">
+                    🔄 Sposta in un altro posto
+                </button>
             </div>
 
             <!-- Pulsanti Timbri -->
@@ -348,6 +387,8 @@
                 this.userId = userId;
                 this.students = [];
                 this.activeStudentId = null;
+                this.swapMode = false;
+                this.swapSourceId = null;
             }
 
             async loadData() {
@@ -459,12 +500,25 @@
             createStudentCard(s) {
                 const card = document.createElement('div');
                 const isEmpty = s.name === "" || s.isPlaceholder;
+                const isSwapSource = this.swapMode && this.swapSourceId === s.id;
 
                 card.className = `student-card p-3 rounded-lg border cursor-pointer relative shadow-sm flex flex-col justify-between
                     ${!s.atSeat ? 'off-seat border-slate-300' : 'bg-white border-slate-200 hover:border-indigo-300 hover:shadow-md'}
-                    ${isEmpty ? 'empty-desk' : ''}`;
+                    ${isEmpty ? 'empty-desk' : ''}
+                    ${isSwapSource ? 'swap-source' : ''}
+                    ${this.swapMode && !isSwapSource ? 'swap-target' : ''}`;
 
-                card.onclick = () => this.openModal(s.id);
+                if (this.swapMode) {
+                    card.onclick = () => {
+                        if (isSwapSource) {
+                            this.cancelSwap();
+                        } else {
+                            this.executeSwap(s.id);
+                        }
+                    };
+                } else {
+                    card.onclick = () => this.openModal(s.id);
+                }
 
                 if (isEmpty) {
                     card.innerHTML = `<div class="text-center text-slate-300 text-xs italic mt-2">Posto Vuoto</div>`;
@@ -610,50 +664,71 @@
                 this.save();
             }
 
-            resetData() {
-                if (confirm("Attenzione: Questo cancellerà tutti i progressi (timbri e note) ma manterrà i nomi e i posti. Confermi?")) {
-                    this.students.forEach(s => {
-                        s.stamps = 0;
-                        s.merits = 0;
-                        s.atSeat = true;
-                    });
-                    this.save();
-                    this.closeModal();
+            // ---- RESET SICURO (doppia conferma) ----
+            confirmReset() {
+                document.getElementById('reset-confirm-input').value = '';
+                document.getElementById('reset-modal').classList.remove('hidden');
+            }
+
+            cancelReset() {
+                document.getElementById('reset-modal').classList.add('hidden');
+            }
+
+            executeReset() {
+                const input = document.getElementById('reset-confirm-input').value.trim();
+                if (input !== 'RESET') {
+                    alert('Devi digitare esattamente "RESET" per confermare.');
+                    return;
                 }
+                this.students.forEach(s => {
+                    s.stamps = 0;
+                    s.merits = 0;
+                    s.atSeat = true;
+                });
+                this.save();
+                this.closeModal();
+                document.getElementById('reset-modal').classList.add('hidden');
             }
 
-            exportData() {
-                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.students, null, 2));
-                const downloadAnchorNode = document.createElement('a');
-                downloadAnchorNode.setAttribute("href", dataStr);
-                downloadAnchorNode.setAttribute("download", "registro_classe_" + new Date().toISOString().slice(0,10) + ".json");
-                document.body.appendChild(downloadAnchorNode);
-                downloadAnchorNode.click();
-                downloadAnchorNode.remove();
+            // ---- SCAMBIO POSTI ----
+            startSwap() {
+                const s = this.students.find(x => x.id === this.activeStudentId);
+                if (!s) return;
+                this.swapMode = true;
+                this.swapSourceId = s.id;
+                this.closeModal();
+                document.getElementById('swap-banner').classList.remove('hidden');
+                document.getElementById('swap-student-name').textContent = s.name || 'Posto vuoto';
+                this.renderMap();
             }
 
-            importData(input) {
-                const file = input.files[0];
-                if (!file) return;
+            cancelSwap() {
+                this.swapMode = false;
+                this.swapSourceId = null;
+                document.getElementById('swap-banner').classList.add('hidden');
+                this.renderMap();
+            }
 
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    try {
-                        const data = JSON.parse(e.target.result);
-                        if (Array.isArray(data)) {
-                            this.students = data;
-                            this.save();
-                            alert("Dati importati con successo e salvati nel cloud!");
-                        } else {
-                            alert("Formato file non valido.");
-                        }
-                    } catch (err) {
-                        alert("Errore durante la lettura del file.");
-                        console.error(err);
-                    }
-                    input.value = '';
-                };
-                reader.readAsText(file);
+            executeSwap(targetId) {
+                const source = this.students.find(x => x.id === this.swapSourceId);
+                const target = this.students.find(x => x.id === targetId);
+                if (!source || !target || source.id === target.id) {
+                    this.cancelSwap();
+                    return;
+                }
+
+                // Scambia i dati degli studenti mantenendo id e pos (la posizione fisica)
+                const fieldsToSwap = ['name', 'stamps', 'merits', 'atSeat', 'isPlaceholder'];
+                fieldsToSwap.forEach(field => {
+                    const temp = source[field];
+                    source[field] = target[field];
+                    target[field] = temp;
+                });
+
+                this.swapMode = false;
+                this.swapSourceId = null;
+                document.getElementById('swap-banner').classList.add('hidden');
+                this.save();
             }
 
             printReport() {
@@ -668,20 +743,37 @@
                     .sort((a, b) => a.name.localeCompare(b.name));
 
                 if (activeStudents.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="4">Nessuno studente presente nel registro.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="5">Nessuno studente presente nel registro.</td></tr>';
                 } else {
+                    let totalMerits = 0;
+                    let bonusCount = 0;
+
                     activeStudents.forEach(s => {
                         const tr = document.createElement('tr');
-                        const bonusText = s.merits >= 3 ? '✅ +0.5 Punti' : '-';
+                        const hasBonus = s.merits >= 3;
+                        const bonusText = hasBonus ? '+0.5 Punti' : '-';
+                        const meritsStars = '⭐'.repeat(Math.min(s.merits, 10)) + (s.merits > 10 ? ` (${s.merits})` : '');
+                        const meritsDisplay = s.merits > 0 ? `${meritsStars} (${s.merits})` : '0';
+
+                        totalMerits += s.merits;
+                        if (hasBonus) bonusCount++;
 
                         tr.innerHTML = `
-                            <td>${s.name}</td>
-                            <td>${s.stamps}</td>
-                            <td>${s.merits}</td>
-                            <td>${bonusText}</td>
+                            <td><b>${s.name}</b></td>
+                            <td style="font-size: 0.85em; color: #666;">${s.pos}</td>
+                            <td>${s.stamps} / 5</td>
+                            <td>${meritsDisplay}</td>
+                            <td style="${hasBonus ? 'color: green; font-weight: bold;' : ''}">${bonusText}</td>
                         `;
                         tbody.appendChild(tr);
                     });
+
+                    // Riepilogo
+                    const summary = document.getElementById('print-summary');
+                    summary.innerHTML = `
+                        <hr style="margin: 10px 0;">
+                        <p><b>Riepilogo:</b> ${activeStudents.length} studenti | ${totalMerits} note di merito totali | ${bonusCount} studenti con bonus +0.5</p>
+                    `;
                 }
 
                 window.print();
