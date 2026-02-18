@@ -73,7 +73,7 @@
         /* Stili per la stampa del report */
         @media print {
             body { background: white; color: black; }
-            #app, #student-modal, #reset-modal, #login-screen, #loading-screen { display: none !important; }
+            #app, #student-modal, #reset-modal, #rankings-modal, #login-screen, #loading-screen { display: none !important; }
             #print-area { display: block !important; }
             @page { margin: 2cm; }
         }
@@ -81,6 +81,10 @@
         .print-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
         .print-table th, .print-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
         .print-table th { background-color: #f8f9fa; font-weight: bold; }
+
+        /* Stili classifiche */
+        .ranking-medal { font-size: 1.1em; }
+        .ranking-bar { height: 8px; border-radius: 4px; transition: width 0.3s; }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-900 font-sans">
@@ -93,10 +97,10 @@
             <thead>
                 <tr>
                     <th>Studente</th>
-                    <th>Posto</th>
                     <th>Timbri (su 5)</th>
                     <th>Note di Merito</th>
-                    <th>Bonus +0.5</th>
+                    <th>Dettaglio Timbri</th>
+                    <th>Bonus</th>
                 </tr>
             </thead>
             <tbody id="print-table-body">
@@ -147,6 +151,9 @@
             </div>
 
             <div class="flex flex-wrap gap-2">
+                <button onclick="app.showRankings()" class="px-3 py-2 bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 rounded-lg text-sm font-medium transition flex items-center gap-1">
+                    🏅 Classifiche
+                </button>
                 <button onclick="app.printReport()" class="px-3 py-2 bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 rounded-lg text-sm font-medium transition flex items-center gap-1">
                     🖨️ Report
                 </button>
@@ -246,7 +253,7 @@
             </div>
 
             <!-- Pulsanti Timbri -->
-            <div id="stamp-actions" class="grid grid-cols-3 gap-3 mb-8">
+            <div id="stamp-actions" class="grid grid-cols-3 gap-3 mb-3">
                 <button onclick="app.addStamp('silence')" class="flex flex-col items-center justify-center p-3 h-24 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl transition border border-blue-100 disabled:opacity-40 disabled:cursor-not-allowed action-btn group">
                     <div class="bg-white p-2 rounded-full mb-1 shadow-sm group-hover:scale-110 transition">🤫</div>
                     <span class="text-[10px] font-bold uppercase">Silenzio</span>
@@ -258,6 +265,13 @@
                 <button onclick="app.addStamp('work')" class="flex flex-col items-center justify-center p-3 h-24 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-xl transition border border-amber-100 disabled:opacity-40 disabled:cursor-not-allowed action-btn group">
                     <div class="bg-white p-2 rounded-full mb-1 shadow-sm group-hover:scale-110 transition">📝</div>
                     <span class="text-[10px] font-bold uppercase">Lavoro</span>
+                </button>
+            </div>
+
+            <!-- Pulsante Annulla -->
+            <div class="mb-8">
+                <button onclick="app.undoStamp()" id="undo-btn" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 text-slate-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200 rounded-lg text-xs font-medium transition flex items-center justify-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed">
+                    ↩ Annulla ultimo timbro
                 </button>
             </div>
 
@@ -282,8 +296,30 @@
                 </div>
 
                 <div id="bonus-badge" class="hidden p-2 bg-gradient-to-r from-yellow-100 to-amber-100 border border-yellow-200 text-amber-800 text-center text-xs font-bold rounded shadow-sm animate-pulse">
-                     🏆 BONUS +0.5 ATTIVO! 🏆
+                     🏆 BONUS <span id="bonus-amount">+0.5</span> ATTIVO! 🏆
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Classifiche -->
+    <div id="rankings-modal" class="fixed inset-0 bg-black/60 hidden flex items-center justify-center p-4 z-50 backdrop-blur-sm print:hidden">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-bold text-slate-800">🏅 Classifiche</h2>
+                <button onclick="app.closeRankings()" class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+            </div>
+
+            <!-- Tabs -->
+            <div class="flex gap-1 mb-4 bg-slate-100 rounded-lg p-1">
+                <button onclick="app.showRankingTab('general')" id="tab-general" class="flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition bg-white shadow text-slate-800">Generale</button>
+                <button onclick="app.showRankingTab('silence')" id="tab-silence" class="flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition text-slate-500 hover:text-slate-700">Silenzio</button>
+                <button onclick="app.showRankingTab('posture')" id="tab-posture" class="flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition text-slate-500 hover:text-slate-700">Postura</button>
+                <button onclick="app.showRankingTab('work')" id="tab-work" class="flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition text-slate-500 hover:text-slate-700">Lavoro</button>
+            </div>
+
+            <div id="rankings-content">
+                <!-- Contenuto generato via JS -->
             </div>
         </div>
     </div>
@@ -391,6 +427,32 @@
                 this.swapSourceId = null;
             }
 
+            // Assicura che ogni studente abbia i nuovi campi (migrazione dati)
+            ensureFields() {
+                this.students.forEach(s => {
+                    if (s.silenceCount === undefined) s.silenceCount = 0;
+                    if (s.postureCount === undefined) s.postureCount = 0;
+                    if (s.workCount === undefined) s.workCount = 0;
+                    if (s.lastStampType === undefined) s.lastStampType = null;
+                });
+            }
+
+            createNewStudent(s, index) {
+                return {
+                    id: index + 1,
+                    name: s.name,
+                    pos: s.pos,
+                    stamps: 0,
+                    merits: 0,
+                    atSeat: true,
+                    isPlaceholder: s.name === "",
+                    silenceCount: 0,
+                    postureCount: 0,
+                    workCount: 0,
+                    lastStampType: null
+                };
+            }
+
             async loadData() {
                 try {
                     const doc = await db.collection('classrooms').doc(this.userId).get();
@@ -398,43 +460,27 @@
                     if (doc.exists && doc.data().students) {
                         this.students = doc.data().students;
                     } else {
-                        // Controlla se ci sono dati nel vecchio localStorage (migrazione)
                         const stored = localStorage.getItem('classroom_data_v2');
                         if (stored) {
                             this.students = JSON.parse(stored);
-                            // Migra i dati al cloud
                             await this.saveToFirestore();
-                            // Rimuovi il vecchio dato locale dopo migrazione riuscita
                             localStorage.removeItem('classroom_data_v2');
                         } else {
-                            // Prima volta in assoluto: usa la mappa iniziale
-                            this.students = INITIAL_MAP.map((s, index) => ({
-                                id: index + 1,
-                                name: s.name,
-                                pos: s.pos,
-                                stamps: 0,
-                                merits: 0,
-                                atSeat: true,
-                                isPlaceholder: s.name === ""
-                            }));
+                            this.students = INITIAL_MAP.map((s, index) => this.createNewStudent(s, index));
                             await this.saveToFirestore();
                         }
                     }
                 } catch (err) {
                     console.error('Errore caricamento dati:', err);
-                    // Fallback: prova localStorage
                     const stored = localStorage.getItem('classroom_data_v2');
                     if (stored) {
                         this.students = JSON.parse(stored);
                     } else {
-                        this.students = INITIAL_MAP.map((s, index) => ({
-                            id: index + 1, name: s.name, pos: s.pos,
-                            stamps: 0, merits: 0, atSeat: true,
-                            isPlaceholder: s.name === ""
-                        }));
+                        this.students = INITIAL_MAP.map((s, index) => this.createNewStudent(s, index));
                     }
                 }
 
+                this.ensureFields();
                 this.renderMap();
                 this.setupEventListeners();
             }
@@ -525,7 +571,8 @@
                     return card;
                 }
 
-                const bonusStar = s.merits >= 3 ? '<span class="absolute top-1 right-1 text-yellow-400 drop-shadow-sm text-sm">⭐</span>' : '';
+                const bonusNum = Math.floor(s.merits / 3);
+                const bonusStar = bonusNum > 0 ? `<span class="absolute top-1 right-1 text-yellow-500 drop-shadow-sm text-[10px] font-bold bg-yellow-50 px-1 rounded">+${(bonusNum * 0.5).toFixed(1)}</span>` : '';
                 const warningIcon = !s.atSeat ? '<span class="text-xs bg-red-100 text-red-600 px-1 rounded absolute top-1 right-1">FUORI</span>' : '';
 
                 card.innerHTML = `
@@ -621,7 +668,15 @@
                 if (s.stamps === 4) bar.classList.replace('bg-indigo-500', 'bg-amber-500');
                 else bar.classList.replace('bg-amber-500', 'bg-indigo-500');
 
-                document.getElementById('bonus-badge').classList.toggle('hidden', s.merits < 3);
+                // Bonus multipli: ogni 3 note = +0.5
+                const bonusCount = Math.floor(s.merits / 3);
+                const bonusAmount = (bonusCount * 0.5).toFixed(1);
+                document.getElementById('bonus-badge').classList.toggle('hidden', bonusCount < 1);
+                document.getElementById('bonus-amount').textContent = `+${bonusAmount}`;
+
+                // Pulsante annulla: abilitato solo se c'è un lastStampType
+                const undoBtn = document.getElementById('undo-btn');
+                undoBtn.disabled = !s.lastStampType || isEmpty;
 
                 const buttonsDisabled = !s.atSeat || isEmpty;
                 document.querySelectorAll('.action-btn').forEach(btn => {
@@ -655,11 +710,43 @@
 
                 s.stamps += 1;
 
+                // Traccia il tipo di timbro
+                if (type === 'silence') s.silenceCount = (s.silenceCount || 0) + 1;
+                else if (type === 'posture') s.postureCount = (s.postureCount || 0) + 1;
+                else if (type === 'work') s.workCount = (s.workCount || 0) + 1;
+
+                s.lastStampType = type;
+
                 if (s.stamps >= 5) {
                     s.stamps = 0;
                     s.merits += 1;
                 }
 
+                this.updateModalUI();
+                this.save();
+            }
+
+            undoStamp() {
+                const s = this.students.find(x => x.id === this.activeStudentId);
+                if (!s || !s.lastStampType) return;
+
+                // Se stamps > 0, semplicemente togli 1
+                // Se stamps == 0 e merits > 0, "annulla" la nota (torna a 4 timbri, merits-1)
+                if (s.stamps > 0) {
+                    s.stamps -= 1;
+                } else if (s.merits > 0) {
+                    s.merits -= 1;
+                    s.stamps = 4;
+                } else {
+                    // Niente da annullare
+                    return;
+                }
+
+                // Decrementa il contatore del tipo
+                const typeKey = s.lastStampType + 'Count';
+                if (s[typeKey] > 0) s[typeKey] -= 1;
+
+                s.lastStampType = null; // Annullamento usabile una sola volta
                 this.updateModalUI();
                 this.save();
             }
@@ -684,6 +771,10 @@
                     s.stamps = 0;
                     s.merits = 0;
                     s.atSeat = true;
+                    s.silenceCount = 0;
+                    s.postureCount = 0;
+                    s.workCount = 0;
+                    s.lastStampType = null;
                 });
                 this.save();
                 this.closeModal();
@@ -718,7 +809,7 @@
                 }
 
                 // Scambia i dati degli studenti mantenendo id e pos (la posizione fisica)
-                const fieldsToSwap = ['name', 'stamps', 'merits', 'atSeat', 'isPlaceholder'];
+                const fieldsToSwap = ['name', 'stamps', 'merits', 'atSeat', 'isPlaceholder', 'silenceCount', 'postureCount', 'workCount', 'lastStampType'];
                 fieldsToSwap.forEach(field => {
                     const temp = source[field];
                     source[field] = target[field];
@@ -746,37 +837,181 @@
                     tbody.innerHTML = '<tr><td colspan="5">Nessuno studente presente nel registro.</td></tr>';
                 } else {
                     let totalMerits = 0;
-                    let bonusCount = 0;
+                    let totalBonus = 0;
 
                     activeStudents.forEach(s => {
                         const tr = document.createElement('tr');
-                        const hasBonus = s.merits >= 3;
-                        const bonusText = hasBonus ? '+0.5 Punti' : '-';
-                        const meritsStars = '⭐'.repeat(Math.min(s.merits, 10)) + (s.merits > 10 ? ` (${s.merits})` : '');
-                        const meritsDisplay = s.merits > 0 ? `${meritsStars} (${s.merits})` : '0';
+                        const bonusNum = Math.floor(s.merits / 3);
+                        const bonusAmount = bonusNum * 0.5;
+                        const bonusText = bonusNum > 0 ? `+${bonusAmount.toFixed(1)}` : '-';
+                        const meritsDisplay = s.merits > 0 ? `${s.merits}` : '0';
+                        const typeDetail = `S:${s.silenceCount || 0} P:${s.postureCount || 0} L:${s.workCount || 0}`;
 
                         totalMerits += s.merits;
-                        if (hasBonus) bonusCount++;
+                        totalBonus += bonusAmount;
 
                         tr.innerHTML = `
                             <td><b>${s.name}</b></td>
-                            <td style="font-size: 0.85em; color: #666;">${s.pos}</td>
                             <td>${s.stamps} / 5</td>
                             <td>${meritsDisplay}</td>
-                            <td style="${hasBonus ? 'color: green; font-weight: bold;' : ''}">${bonusText}</td>
+                            <td style="font-size: 0.85em; color: #555;">${typeDetail}</td>
+                            <td style="${bonusNum > 0 ? 'color: green; font-weight: bold;' : ''}">${bonusText}</td>
                         `;
                         tbody.appendChild(tr);
                     });
 
-                    // Riepilogo
+                    const studentsWithBonus = activeStudents.filter(s => s.merits >= 3).length;
                     const summary = document.getElementById('print-summary');
                     summary.innerHTML = `
                         <hr style="margin: 10px 0;">
-                        <p><b>Riepilogo:</b> ${activeStudents.length} studenti | ${totalMerits} note di merito totali | ${bonusCount} studenti con bonus +0.5</p>
+                        <p><b>Riepilogo:</b> ${activeStudents.length} studenti | ${totalMerits} note di merito totali | ${studentsWithBonus} studenti con bonus (totale: +${totalBonus.toFixed(1)})</p>
+                        <p style="margin-top: 4px; font-size: 0.85em; color: #666;"><i>Dettaglio: S = Silenzio, P = Postura, L = Lavoro (timbri cumulativi per tipo)</i></p>
                     `;
                 }
 
                 window.print();
+            }
+            // ---- CLASSIFICHE ----
+            showRankings() {
+                document.getElementById('rankings-modal').classList.remove('hidden');
+                this.showRankingTab('general');
+            }
+
+            closeRankings() {
+                document.getElementById('rankings-modal').classList.add('hidden');
+            }
+
+            showRankingTab(tab) {
+                // Aggiorna tab attiva
+                ['general', 'silence', 'posture', 'work'].forEach(t => {
+                    const btn = document.getElementById(`tab-${t}`);
+                    if (t === tab) {
+                        btn.className = 'flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition bg-white shadow text-slate-800';
+                    } else {
+                        btn.className = 'flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition text-slate-500 hover:text-slate-700';
+                    }
+                });
+
+                const container = document.getElementById('rankings-content');
+                const active = this.students.filter(s => s.name && s.name !== "" && !s.isPlaceholder);
+
+                if (tab === 'general') {
+                    container.innerHTML = this.renderGeneralRanking(active);
+                } else {
+                    container.innerHTML = this.renderTypeRanking(active, tab);
+                }
+            }
+
+            renderGeneralRanking(students) {
+                // Classifica per timbri totali (merits * 5 + stamps)
+                const byTotal = [...students].sort((a, b) => {
+                    const totalA = a.merits * 5 + a.stamps;
+                    const totalB = b.merits * 5 + b.stamps;
+                    return totalB - totalA;
+                });
+
+                const maxTotal = byTotal.length > 0 ? byTotal[0].merits * 5 + byTotal[0].stamps : 1;
+
+                let html = '<div class="space-y-4">';
+
+                // Classifica timbri totali
+                html += '<h3 class="text-sm font-bold text-slate-700 mb-2">Timbri totali accumulati</h3>';
+                html += '<div class="space-y-1.5">';
+                byTotal.forEach((s, i) => {
+                    const total = s.merits * 5 + s.stamps;
+                    const pct = maxTotal > 0 ? (total / maxTotal) * 100 : 0;
+                    const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `<span class="text-xs text-slate-400 w-5 inline-block text-center">${i + 1}</span>`;
+                    html += `<div class="flex items-center gap-2">
+                        <span class="ranking-medal w-5 text-center">${medal}</span>
+                        <span class="text-xs font-medium w-24 truncate">${s.name}</span>
+                        <div class="flex-1 bg-slate-100 rounded-full overflow-hidden">
+                            <div class="ranking-bar bg-indigo-400" style="width: ${pct}%"></div>
+                        </div>
+                        <span class="text-xs font-bold text-slate-600 w-8 text-right">${total}</span>
+                    </div>`;
+                });
+                html += '</div>';
+
+                // Classifica note di merito
+                const byMerits = [...students].sort((a, b) => b.merits - a.merits);
+                const maxMerits = byMerits.length > 0 ? byMerits[0].merits : 1;
+
+                html += '<h3 class="text-sm font-bold text-slate-700 mt-5 mb-2">Note di merito</h3>';
+                html += '<div class="space-y-1.5">';
+                byMerits.forEach((s, i) => {
+                    const pct = maxMerits > 0 ? (s.merits / maxMerits) * 100 : 0;
+                    const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `<span class="text-xs text-slate-400 w-5 inline-block text-center">${i + 1}</span>`;
+                    html += `<div class="flex items-center gap-2">
+                        <span class="ranking-medal w-5 text-center">${medal}</span>
+                        <span class="text-xs font-medium w-24 truncate">${s.name}</span>
+                        <div class="flex-1 bg-slate-100 rounded-full overflow-hidden">
+                            <div class="ranking-bar bg-yellow-400" style="width: ${pct}%"></div>
+                        </div>
+                        <span class="text-xs font-bold text-slate-600 w-8 text-right">${s.merits}</span>
+                    </div>`;
+                });
+                html += '</div>';
+
+                // Classifica bonus
+                const withBonus = students.filter(s => s.merits >= 3)
+                    .sort((a, b) => Math.floor(b.merits / 3) - Math.floor(a.merits / 3));
+
+                if (withBonus.length > 0) {
+                    html += '<h3 class="text-sm font-bold text-slate-700 mt-5 mb-2">Bonus ottenuti</h3>';
+                    html += '<div class="space-y-1.5">';
+                    withBonus.forEach((s, i) => {
+                        const bonus = (Math.floor(s.merits / 3) * 0.5).toFixed(1);
+                        const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `<span class="text-xs text-slate-400 w-5 inline-block text-center">${i + 1}</span>`;
+                        html += `<div class="flex items-center gap-2">
+                            <span class="ranking-medal w-5 text-center">${medal}</span>
+                            <span class="text-xs font-medium w-24 truncate">${s.name}</span>
+                            <span class="text-xs font-bold text-green-600">+${bonus}</span>
+                        </div>`;
+                    });
+                    html += '</div>';
+                } else {
+                    html += '<p class="text-xs text-slate-400 mt-4 italic">Nessun bonus ancora assegnato</p>';
+                }
+
+                html += '</div>';
+                return html;
+            }
+
+            renderTypeRanking(students, type) {
+                const typeMap = {
+                    silence: { field: 'silenceCount', label: 'Silenzio', color: 'bg-blue-400', emoji: '🤫' },
+                    posture: { field: 'postureCount', label: 'Postura', color: 'bg-emerald-400', emoji: '🪑' },
+                    work: { field: 'workCount', label: 'Lavoro', color: 'bg-amber-400', emoji: '📝' }
+                };
+
+                const info = typeMap[type];
+                const sorted = [...students].sort((a, b) => (b[info.field] || 0) - (a[info.field] || 0));
+                const maxVal = sorted.length > 0 ? (sorted[0][info.field] || 0) : 1;
+
+                let html = `<h3 class="text-sm font-bold text-slate-700 mb-3">${info.emoji} Classifica ${info.label}</h3>`;
+                html += '<div class="space-y-1.5">';
+
+                sorted.forEach((s, i) => {
+                    const val = s[info.field] || 0;
+                    const pct = maxVal > 0 ? (val / maxVal) * 100 : 0;
+                    const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `<span class="text-xs text-slate-400 w-5 inline-block text-center">${i + 1}</span>`;
+                    html += `<div class="flex items-center gap-2">
+                        <span class="ranking-medal w-5 text-center">${medal}</span>
+                        <span class="text-xs font-medium w-24 truncate">${s.name}</span>
+                        <div class="flex-1 bg-slate-100 rounded-full overflow-hidden">
+                            <div class="ranking-bar ${info.color}" style="width: ${pct}%"></div>
+                        </div>
+                        <span class="text-xs font-bold text-slate-600 w-8 text-right">${val}</span>
+                    </div>`;
+                });
+
+                html += '</div>';
+
+                if (sorted.every(s => (s[info.field] || 0) === 0)) {
+                    html = `<p class="text-sm text-slate-400 italic text-center py-8">Nessun timbro ${info.label.toLowerCase()} ancora registrato</p>`;
+                }
+
+                return html;
             }
         }
 
