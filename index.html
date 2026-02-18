@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestione Classe - Mappa Timbri</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Layout specifico per la mappa della classe */
+        .classroom-layout {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr); /* 3 Grandi colonne (coppie di banchi) */
+            gap: 2rem; /* Corridoi ampi */
+        }
+        
+        .desk-pair {
+            display: grid;
+            grid-template-columns: 1fr 1fr; /* 2 Banchi vicini */
+            gap: 0.5rem; /* Spazio piccolo tra i compagni di banco */
+        }
+
+        @media (max-width: 768px) {
+            .classroom-layout {
+                grid-template-columns: 1fr; /* Su mobile diventa una colonna unica */
+            }
+        }
+
+        .student-card {
+            transition: all 0.2s ease;
+            min-height: 100px;
+        }
+        .student-card.off-seat {
+            opacity: 0.6;
+            filter: grayscale(1);
+            background-color: #f1f5f9;
+            border-style: dashed;
+        }
+        .student-card.empty-desk {
+            opacity: 0.4;
+            border: 2px dashed #cbd5e1;
+            background: transparent;
+        }
+        
+        .stamp-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 1px;
+        }
+        .bg-silence { background-color: #3b82f6; }
+        .bg-posture { background-color: #10b981; }
+        .bg-work { background-color: #f59e0b; }
+
+        /* Stili per la stampa del report */
+        @media print {
+            body { background: white; color: black; }
+            #app, #student-modal { display: none !important; }
+            #print-area { display: block !important; }
+            @page { margin: 2cm; }
+        }
+        #print-area { display: none; }
+        .print-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        .print-table th, .print-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        .print-table th { background-color: #f8f9fa; font-weight: bold; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 font-sans">
+
+    <!-- Area invisibile che appare solo in stampa -->
+    <div id="print-area" class="p-8 bg-white text-black">
+        <h1 class="text-2xl font-bold mb-2">Report Classe</h1>
+        <p class="mb-6 text-sm text-gray-600" id="print-date"></p>
+        <table class="print-table">
+            <thead>
+                <tr>
+                    <th>Studente</th>
+                    <th>Timbri Attuali (su 5)</th>
+                    <th>Note di Merito ⭐</th>
+                    <th>Bonus Maturato</th>
+                </tr>
+            </thead>
+            <tbody id="print-table-body">
+                <!-- Righe generate via JS -->
+            </tbody>
+        </table>
+    </div>
+
+    <div id="app" class="max-w-7xl mx-auto p-4 md:p-6 print:hidden">
+        <!-- Header -->
+        <header class="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+                <h1 class="text-2xl font-bold text-slate-800">Gestione Classe</h1>
+                <p class="text-slate-500 text-sm">Monitoraggio comportamenti e timbri</p>
+            </div>
+            
+            <div class="flex flex-wrap gap-2">
+                <!-- Input file nascosto per l'importazione -->
+                <input type="file" id="import-input" accept=".json" class="hidden" onchange="app.importData(this)">
+                
+                <button onclick="document.getElementById('import-input').click()" class="px-3 py-2 bg-slate-100 border border-slate-300 hover:bg-slate-200 rounded-lg text-sm font-medium transition flex items-center gap-1">
+                    📂 Importa
+                </button>
+                <button onclick="app.exportData()" class="px-3 py-2 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg text-sm font-medium shadow-sm transition flex items-center gap-1">
+                    💾 Salva
+                </button>
+                <button onclick="app.printReport()" class="px-3 py-2 bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 rounded-lg text-sm font-medium transition flex items-center gap-1">
+                    🖨️ Report
+                </button>
+                <button onclick="app.resetData()" class="ml-2 px-3 py-2 bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 rounded-lg text-sm font-medium transition">
+                    ⚠️ Reset
+                </button>
+            </div>
+        </header>
+
+        <!-- Legenda Compatta -->
+        <div class="mb-8 p-3 bg-white rounded-lg shadow-sm border border-slate-200 flex flex-wrap items-center gap-4 text-xs md:text-sm">
+            <span class="font-bold text-slate-600">Legenda:</span>
+            <div class="flex items-center gap-1"><span class="stamp-dot bg-silence"></span> Silenzio</div>
+            <div class="flex items-center gap-1"><span class="stamp-dot bg-posture"></span> Postura</div>
+            <div class="flex items-center gap-1"><span class="stamp-dot bg-work"></span> Lavoro</div>
+            <div class="hidden md:block w-px h-4 bg-slate-300 mx-2"></div>
+            <div class="text-slate-500">5 Timbri = 1 Nota ⭐ | 3 Note = +0.5 Bonus 🎓</div>
+        </div>
+
+        <!-- Mappa A Visualizzazione Banchi -->
+        <div id="classroom-container" class="space-y-4">
+            <!-- Le righe verranno generate qui via JS -->
+        </div>
+
+    </div>
+
+    <!-- Modal Dettaglio Studente -->
+    <div id="student-modal" class="fixed inset-0 bg-black/60 hidden flex items-center justify-center p-4 z-50 backdrop-blur-sm print:hidden">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl transform transition-all">
+            
+            <!-- Intestazione Modal con Edit Nome -->
+            <div class="flex justify-between items-start mb-4">
+                <div class="w-full mr-4">
+                    <div class="flex items-center gap-2 mb-1">
+                        <!-- Visualizzazione Nome -->
+                        <h2 id="modal-student-name" class="text-xl font-bold text-slate-800">Nome</h2>
+                        <!-- Input Edit (nascosto di default) -->
+                        <input type="text" id="modal-edit-name" class="hidden w-full text-xl font-bold border-b-2 border-indigo-500 outline-none p-0" onblur="app.saveNameChange()" onkeydown="if(event.key === 'Enter') this.blur()">
+                        
+                        <!-- Bottone Edit -->
+                        <button onclick="app.toggleEditName()" class="text-slate-400 hover:text-indigo-600 transition p-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <p id="modal-student-pos" class="text-xs text-slate-500 font-mono">Posto: A1</p>
+                </div>
+                <button onclick="app.closeModal()" class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+            </div>
+
+            <!-- Toggle Presenza -->
+            <div class="mb-6 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                <label class="flex items-center cursor-pointer select-none">
+                    <div class="relative">
+                        <input type="checkbox" id="modal-at-seat" class="sr-only peer" onchange="app.togglePresence()">
+                        <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
+                    </div>
+                    <span class="ml-3 text-sm font-medium text-slate-700" id="presence-text">Al proprio posto</span>
+                </label>
+            </div>
+
+            <!-- Pulsanti Timbri -->
+            <div id="stamp-actions" class="grid grid-cols-3 gap-3 mb-8">
+                <button onclick="app.addStamp('silence')" class="flex flex-col items-center justify-center p-3 h-24 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl transition border border-blue-100 disabled:opacity-40 disabled:cursor-not-allowed action-btn group">
+                    <div class="bg-white p-2 rounded-full mb-1 shadow-sm group-hover:scale-110 transition">🤫</div>
+                    <span class="text-[10px] font-bold uppercase">Silenzio</span>
+                </button>
+                <button onclick="app.addStamp('posture')" class="flex flex-col items-center justify-center p-3 h-24 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl transition border border-emerald-100 disabled:opacity-40 disabled:cursor-not-allowed action-btn group">
+                    <div class="bg-white p-2 rounded-full mb-1 shadow-sm group-hover:scale-110 transition">🪑</div>
+                    <span class="text-[10px] font-bold uppercase">Postura</span>
+                </button>
+                <button onclick="app.addStamp('work')" class="flex flex-col items-center justify-center p-3 h-24 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-xl transition border border-amber-100 disabled:opacity-40 disabled:cursor-not-allowed action-btn group">
+                    <div class="bg-white p-2 rounded-full mb-1 shadow-sm group-hover:scale-110 transition">📝</div>
+                    <span class="text-[10px] font-bold uppercase">Lavoro</span>
+                </button>
+            </div>
+
+            <!-- Footer Statistiche -->
+            <div class="space-y-4 pt-4 border-t border-slate-100">
+                <div>
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Progresso Timbri</span>
+                        <span id="modal-current-stamps" class="text-sm font-bold text-slate-700">0/5</span>
+                    </div>
+                    <div class="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden">
+                        <div id="modal-stamp-progress" class="bg-indigo-500 h-full transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                </div>
+                
+                <div class="flex justify-between items-center bg-indigo-50 p-3 rounded-lg border border-indigo-100">
+                    <span class="text-sm text-indigo-800 font-medium">Note di Merito</span>
+                    <div class="flex items-center gap-2">
+                        <span class="text-lg">⭐</span>
+                        <span id="modal-merits" class="text-xl font-bold text-indigo-700">0</span>
+                    </div>
+                </div>
+
+                <div id="bonus-badge" class="hidden p-2 bg-gradient-to-r from-yellow-100 to-amber-100 border border-yellow-200 text-amber-800 text-center text-xs font-bold rounded shadow-sm animate-pulse">
+                     🏆 BONUS +0.5 ATTIVO! 🏆
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Dati iniziali basati sulla mappa caricata
+        // Layout: 4 righe, 3 gruppi da 2 banchi ciascuna.
+        // Ordine: Riga 1 (sx -> dx), Riga 2...
+        const INITIAL_MAP = [
+            // RIGA 1
+            { name: "Raif", pos: "R1-A1" }, { name: "Yerymiuchuck", pos: "R1-A2" }, // Gruppo 1
+            { name: "Montalto", pos: "R1-B1" }, { name: "Morillo", pos: "R1-B2" },   // Gruppo 2
+            { name: "Bicaj", pos: "R1-C1" }, { name: "", pos: "R1-C2" },             // Gruppo 3
+            
+            // RIGA 2
+            { name: "Bianchin", pos: "R2-A1" }, { name: "Talha", pos: "R2-A2" },
+            { name: "Mbengue", pos: "R2-B1" }, { name: "Spahiu", pos: "R2-B2" },
+            { name: "Cheng", pos: "R2-C1" }, { name: "", pos: "R2-C2" },
+
+            // RIGA 3
+            { name: "Morina", pos: "R3-A1" }, { name: "Tanase", pos: "R3-A2" },
+            { name: "Barboni", pos: "R3-B1" }, { name: "Nonis", pos: "R3-B2" },
+            { name: "Bronzin", pos: "R3-C1" }, { name: "Dakavelli", pos: "R3-C2" },
+
+            // RIGA 4
+            { name: "Trevisan", pos: "R4-A1" }, { name: "Lunardi", pos: "R4-A2" },
+            { name: "Bozza", pos: "R4-B1" }, { name: "Pietroni", pos: "R4-B2" },
+            { name: "Moretto", pos: "R4-C1" }, { name: "Antonel", pos: "R4-C2" },
+        ];
+
+        class ClassroomApp {
+            constructor() {
+                this.loadData();
+                this.activeStudentId = null;
+                this.init();
+            }
+
+            loadData() {
+                const stored = localStorage.getItem('classroom_data_v2');
+                if (stored) {
+                    this.students = JSON.parse(stored);
+                } else {
+                    // Inizializza con la mappa specifica
+                    this.students = INITIAL_MAP.map((s, index) => ({
+                        id: index + 1,
+                        name: s.name,
+                        pos: s.pos,
+                        stamps: 0,
+                        merits: 0,
+                        atSeat: true,
+                        isPlaceholder: s.name === ""
+                    }));
+                }
+            }
+
+            init() {
+                this.renderMap();
+                window.addEventListener('click', (e) => {
+                    if (e.target.id === 'student-modal') this.closeModal();
+                });
+            }
+
+            save() {
+                localStorage.setItem('classroom_data_v2', JSON.stringify(this.students));
+                this.renderMap();
+            }
+
+            renderMap() {
+                const container = document.getElementById('classroom-container');
+                container.innerHTML = '';
+
+                // Dividiamo gli studenti in righe (6 studenti per riga)
+                for (let r = 0; r < 4; r++) {
+                    const rowDiv = document.createElement('div');
+                    rowDiv.className = 'classroom-layout';
+                    
+                    // Creiamo 3 gruppi di banchi per ogni riga
+                    for (let g = 0; g < 3; g++) {
+                        const groupDiv = document.createElement('div');
+                        groupDiv.className = 'desk-pair';
+                        
+                        // Prendiamo i 2 studenti per questo gruppo
+                        // Indice base = (Riga * 6) + (Gruppo * 2)
+                        const baseIdx = (r * 6) + (g * 2);
+                        const s1 = this.students[baseIdx];
+                        const s2 = this.students[baseIdx + 1];
+
+                        groupDiv.appendChild(this.createStudentCard(s1));
+                        groupDiv.appendChild(this.createStudentCard(s2));
+                        
+                        rowDiv.appendChild(groupDiv);
+                    }
+                    container.appendChild(rowDiv);
+                }
+            }
+
+            createStudentCard(s) {
+                const card = document.createElement('div');
+                const isEmpty = s.name === "" || s.isPlaceholder;
+                
+                card.className = `student-card p-3 rounded-lg border cursor-pointer relative shadow-sm flex flex-col justify-between 
+                    ${!s.atSeat ? 'off-seat border-slate-300' : 'bg-white border-slate-200 hover:border-indigo-300 hover:shadow-md'} 
+                    ${isEmpty ? 'empty-desk' : ''}`;
+                
+                card.onclick = () => this.openModal(s.id);
+
+                if (isEmpty) {
+                    card.innerHTML = `<div class="text-center text-slate-300 text-xs italic mt-2">Posto Vuoto</div>`;
+                    return card;
+                }
+
+                const bonusStar = s.merits >= 3 ? '<span class="absolute top-1 right-1 text-yellow-400 drop-shadow-sm text-sm">⭐</span>' : '';
+                const warningIcon = !s.atSeat ? '<span class="text-xs bg-red-100 text-red-600 px-1 rounded absolute top-1 right-1">FUORI</span>' : '';
+
+                card.innerHTML = `
+                    ${bonusStar}
+                    ${warningIcon}
+                    <div>
+                        <div class="font-bold text-slate-800 leading-tight text-sm mb-2 pr-4 truncate">${s.name}</div>
+                        <div class="flex gap-0.5 flex-wrap h-3 mb-1">
+                            ${this.generateStampVisuals(s.stamps)}
+                        </div>
+                    </div>
+                    <div class="text-[10px] text-slate-400 flex justify-between items-end border-t border-slate-50 pt-1 mt-1">
+                        <span>Note: <b class="text-indigo-600">${s.merits}</b></span>
+                        ${s.stamps === 4 ? '<span class="text-amber-500 font-bold animate-pulse">!</span>' : ''}
+                    </div>
+                `;
+                return card;
+            }
+
+            generateStampVisuals(count) {
+                let html = '';
+                for (let i = 0; i < 5; i++) {
+                    const color = i < count ? 'bg-indigo-500' : 'bg-slate-200';
+                    html += `<span class="w-2 h-2 rounded-full ${color}"></span>`;
+                }
+                return html;
+            }
+
+            openModal(id) {
+                this.activeStudentId = id;
+                const s = this.students.find(x => x.id === id);
+                
+                // Reset edit mode
+                document.getElementById('modal-student-name').classList.remove('hidden');
+                document.getElementById('modal-edit-name').classList.add('hidden');
+                
+                const displayName = s.name === "" ? "Posto Vuoto" : s.name;
+                document.getElementById('modal-student-name').innerText = displayName;
+                document.getElementById('modal-edit-name').value = s.name; // Value is actual name (can be empty)
+                
+                document.getElementById('modal-student-pos').innerText = `ID Mappa: ${id}`;
+                document.getElementById('modal-at-seat').checked = s.atSeat;
+                
+                document.getElementById('student-modal').classList.remove('hidden');
+                this.updateModalUI();
+            }
+
+            // Funzioni per modificare il nome
+            toggleEditName() {
+                const nameDisplay = document.getElementById('modal-student-name');
+                const nameInput = document.getElementById('modal-edit-name');
+                
+                if (nameInput.classList.contains('hidden')) {
+                    nameDisplay.classList.add('hidden');
+                    nameInput.classList.remove('hidden');
+                    nameInput.focus();
+                } else {
+                    this.saveNameChange();
+                }
+            }
+
+            saveNameChange() {
+                const s = this.students.find(x => x.id === this.activeStudentId);
+                const newName = document.getElementById('modal-edit-name').value.trim();
+                
+                s.name = newName;
+                s.isPlaceholder = (newName === "");
+                
+                // UI toggle back
+                document.getElementById('modal-student-name').innerText = newName === "" ? "Posto Vuoto" : newName;
+                document.getElementById('modal-student-name').classList.remove('hidden');
+                document.getElementById('modal-edit-name').classList.add('hidden');
+                
+                this.save(); // Salva e aggiorna la griglia sotto
+            }
+
+            updateModalUI() {
+                const s = this.students.find(x => x.id === this.activeStudentId);
+                const isEmpty = s.name === "" || s.isPlaceholder;
+
+                // Aggiorna testo presenza
+                const presenceText = document.getElementById('presence-text');
+                if (isEmpty) {
+                     presenceText.innerText = "Posto non assegnato";
+                     document.getElementById('modal-at-seat').disabled = true;
+                } else {
+                     presenceText.innerText = s.atSeat ? "Lo studente è al suo posto" : "Studente FUORI posto";
+                     presenceText.className = s.atSeat ? "ml-3 text-sm font-medium text-green-700" : "ml-3 text-sm font-bold text-red-600";
+                     document.getElementById('modal-at-seat').disabled = false;
+                }
+
+                document.getElementById('modal-current-stamps').innerText = `${s.stamps} / 5`;
+                document.getElementById('modal-merits').innerText = s.merits;
+                document.getElementById('modal-stamp-progress').style.width = `${(s.stamps / 5) * 100}%`;
+                
+                // Colore barra progresso
+                const bar = document.getElementById('modal-stamp-progress');
+                if (s.stamps === 4) bar.classList.replace('bg-indigo-500', 'bg-amber-500');
+                else bar.classList.replace('bg-amber-500', 'bg-indigo-500');
+
+                document.getElementById('bonus-badge').classList.toggle('hidden', s.merits < 3);
+
+                // Disabilita tasti se non al posto o se vuoto
+                const buttonsDisabled = !s.atSeat || isEmpty;
+                document.querySelectorAll('.action-btn').forEach(btn => {
+                    btn.disabled = buttonsDisabled;
+                    if (buttonsDisabled) {
+                        btn.classList.add('opacity-50', 'grayscale');
+                    } else {
+                        btn.classList.remove('opacity-50', 'grayscale');
+                    }
+                });
+            }
+
+            closeModal() {
+                // Ensure edit mode is closed correctly before closing modal
+                if (!document.getElementById('modal-edit-name').classList.contains('hidden')) {
+                    this.saveNameChange();
+                }
+                document.getElementById('student-modal').classList.add('hidden');
+                this.activeStudentId = null;
+            }
+
+            togglePresence() {
+                const s = this.students.find(x => x.id === this.activeStudentId);
+                s.atSeat = document.getElementById('modal-at-seat').checked;
+                this.updateModalUI();
+                this.save();
+            }
+
+            addStamp(type) {
+                const s = this.students.find(x => x.id === this.activeStudentId);
+                if (!s.atSeat) return;
+
+                s.stamps += 1;
+
+                if (s.stamps >= 5) {
+                    s.stamps = 0;
+                    s.merits += 1;
+                    // Piccolo effetto "confetti" visuale o alert potrebbe andare qui
+                }
+
+                this.updateModalUI();
+                this.save();
+            }
+
+            resetData() {
+                if (confirm("Attenzione: Questo cancellerà tutti i progressi (timbri e note) ma manterrà i nomi e i posti. Confermi?")) {
+                    this.students.forEach(s => {
+                        s.stamps = 0;
+                        s.merits = 0;
+                        s.atSeat = true;
+                    });
+                    this.save();
+                    this.closeModal(); // Chiude se aperto
+                }
+            }
+            
+            exportData() {
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.students, null, 2));
+                const downloadAnchorNode = document.createElement('a');
+                downloadAnchorNode.setAttribute("href", dataStr);
+                downloadAnchorNode.setAttribute("download", "registro_classe_" + new Date().toISOString().slice(0,10) + ".json");
+                document.body.appendChild(downloadAnchorNode);
+                downloadAnchorNode.click();
+                downloadAnchorNode.remove();
+            }
+
+            importData(input) {
+                const file = input.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = JSON.parse(e.target.result);
+                        if (Array.isArray(data)) {
+                            this.students = data;
+                            this.save();
+                            alert("Dati importati con successo!");
+                        } else {
+                            alert("Formato file non valido.");
+                        }
+                    } catch (err) {
+                        alert("Errore durante la lettura del file.");
+                        console.error(err);
+                    }
+                    // Reset input per permettere di ricaricare lo stesso file se necessario
+                    input.value = ''; 
+                };
+                reader.readAsText(file);
+            }
+
+            printReport() {
+                const today = new Date().toLocaleDateString('it-IT', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+                document.getElementById('print-date').innerText = `Generato il: ${today}`;
+
+                const tbody = document.getElementById('print-table-body');
+                tbody.innerHTML = '';
+
+                // Filtra solo gli studenti reali (ignora i posti vuoti) e ordina alfabeticamente
+                const activeStudents = this.students
+                    .filter(s => s.name && s.name !== "" && !s.isPlaceholder)
+                    .sort((a, b) => a.name.localeCompare(b.name));
+
+                if (activeStudents.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4">Nessuno studente presente nel registro.</td></tr>';
+                } else {
+                    activeStudents.forEach(s => {
+                        const tr = document.createElement('tr');
+                        const bonusText = s.merits >= 3 ? '✅ +0.5 Punti' : '-';
+                        
+                        tr.innerHTML = `
+                            <td>${s.name}</td>
+                            <td>${s.stamps}</td>
+                            <td>${s.merits}</td>
+                            <td>${bonusText}</td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                }
+
+                // Avvia la stampa
+                window.print();
+            }
+        }
+
+        const app = new ClassroomApp();
+    </script>
+</body>
+</html>
