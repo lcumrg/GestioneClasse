@@ -338,6 +338,10 @@
                 <button onclick="app.toggleSharing()" id="share-btn" class="admin-only px-3 py-2 bg-green-50 border border-green-200 text-green-700 hover:bg-green-100 rounded-lg text-sm font-medium transition flex items-center gap-1">
                     🔗 Condividi
                 </button>
+                <div id="share-link-bar" class="admin-only hidden items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-200 rounded-lg">
+                    <input id="share-link-input" type="text" readonly class="bg-transparent text-xs text-green-800 font-mono w-48 md:w-64 outline-none select-all cursor-text" onclick="this.select()">
+                    <button onclick="app.copyShareLink()" id="copy-link-btn" class="px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition whitespace-nowrap">Copia</button>
+                </div>
                 <button onclick="app.printReport()" class="admin-only px-3 py-2 bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 rounded-lg text-sm font-medium transition flex items-center gap-1">
                     🖨️ Report
                 </button>
@@ -1192,6 +1196,35 @@
             }
 
             // ---- CONDIVISIONE LINK PUBBLICO ----
+            getShareUrl() {
+                return window.location.origin + window.location.pathname + '?view=' + this.userId;
+            }
+
+            showShareLinkBar(show) {
+                const bar = document.getElementById('share-link-bar');
+                const input = document.getElementById('share-link-input');
+                if (show) {
+                    input.value = this.getShareUrl();
+                    bar.classList.remove('hidden');
+                    bar.classList.add('flex');
+                } else {
+                    bar.classList.add('hidden');
+                    bar.classList.remove('flex');
+                }
+            }
+
+            copyShareLink() {
+                const url = this.getShareUrl();
+                const btn = document.getElementById('copy-link-btn');
+                navigator.clipboard.writeText(url).then(() => {
+                    btn.textContent = 'Copiato!';
+                    setTimeout(() => { btn.textContent = 'Copia'; }, 2000);
+                }).catch(() => {
+                    // Fallback: seleziona il campo input
+                    document.getElementById('share-link-input').select();
+                });
+            }
+
             toggleSharing() {
                 this.sharingEnabled = !this.sharingEnabled;
                 localStorage.setItem('sharing_enabled', this.sharingEnabled ? '1' : '0');
@@ -1204,26 +1237,22 @@
                         students: this.students,
                         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                     }).then(() => {
-                        const url = window.location.origin + window.location.pathname + '?view=' + this.userId;
-                        navigator.clipboard.writeText(url).then(() => {
-                            alert('Condivisione attivata! Link copiato negli appunti.\n\nGli studenti possono vedere i dati a questo indirizzo:\n' + url);
-                        }).catch(() => {
-                            prompt('Condivisione attivata! Copia questo link:', url);
-                        });
+                        this.showShareLinkBar(true);
                     }).catch(err => {
                         console.error('Errore pubblicazione:', err);
                         alert('Errore nella pubblicazione. Verifica le regole Firestore (vedi console).');
                         this.sharingEnabled = false;
                         localStorage.setItem('sharing_enabled', '0');
+                        this.showShareLinkBar(false);
                     });
-                    btn.innerHTML = '🔗 Condivisione ON';
+                    btn.innerHTML = '🔗 ON';
                     btn.className = btn.className.replace('bg-green-50 border-green-200 text-green-700', 'bg-green-600 border-green-700 text-white');
                 } else {
                     // Disattiva: rimuovi dati pubblici
                     db.collection('public_reports').doc(this.userId).delete().catch(() => {});
                     btn.innerHTML = '🔗 Condividi';
                     btn.className = btn.className.replace('bg-green-600 border-green-700 text-white', 'bg-green-50 border-green-200 text-green-700');
-                    alert('Condivisione disattivata. Il link non funzionerà più.');
+                    this.showShareLinkBar(false);
                 }
             }
 
@@ -1231,9 +1260,10 @@
                 if (this.sharingEnabled) {
                     const btn = document.getElementById('share-btn');
                     if (btn) {
-                        btn.innerHTML = '🔗 Condivisione ON';
+                        btn.innerHTML = '🔗 ON';
                         btn.className = btn.className.replace('bg-green-50 border-green-200 text-green-700', 'bg-green-600 border-green-700 text-white');
                     }
+                    this.showShareLinkBar(true);
                 }
             }
 
