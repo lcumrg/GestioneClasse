@@ -85,6 +85,120 @@
         /* Stili classifiche */
         .ranking-medal { font-size: 1.1em; }
         .ranking-bar { height: 8px; border-radius: 4px; transition: width 0.3s; }
+
+        /* ===== OTTIMIZZAZIONE LIM - Schermi Grandi ===== */
+
+        /* Schermi grandi (>=1280px): ingrandimento progressivo */
+        @media (min-width: 1280px) {
+            .classroom-layout { gap: 2.5rem; }
+            .desk-pair { gap: 0.75rem; }
+            .student-card { min-height: 120px; padding: 0.875rem; }
+            .student-card .student-name { font-size: 1.1rem; }
+            .student-card .stamp-dot-card { width: 10px; height: 10px; }
+            .student-card .card-footer { font-size: 12px; }
+            .stamp-dot { width: 13px; height: 13px; }
+        }
+
+        /* Schermi LIM (>=1600px) */
+        @media (min-width: 1600px) {
+            #app { max-width: 92vw !important; }
+            .classroom-layout { gap: 3rem; }
+            .desk-pair { gap: 1rem; }
+            #classroom-container > :not(:first-child) { margin-top: 1.25rem !important; }
+
+            .student-card { min-height: 150px; padding: 1.25rem; border-width: 2px; }
+            .student-card .student-name { font-size: 1.5rem; margin-bottom: 0.5rem; }
+            .student-card .stamp-dot-card { width: 14px; height: 14px; }
+            .student-card .stamp-visual { gap: 4px; height: auto; margin-bottom: 0.5rem; }
+            .student-card .card-footer { font-size: 14px; padding-top: 0.5rem; margin-top: 0.5rem; }
+            .student-card .card-footer b { font-size: 16px; }
+            .student-card .bonus-badge-card { font-size: 12px; padding: 3px 6px; }
+            .student-card .absence-badge { font-size: 12px; padding: 3px 6px; }
+            .stamp-dot { width: 16px; height: 16px; }
+
+            header h1 { font-size: 1.75rem !important; }
+            header button { font-size: 0.95rem; padding: 0.625rem 1rem; }
+            .legend-bar { font-size: 0.95rem !important; padding: 1rem !important; }
+            .legend-bar .stamp-dot { width: 14px; height: 14px; }
+
+            /* Modal studente più grande */
+            #student-modal > div { max-width: 28rem !important; }
+            #student-modal .action-btn { height: 7rem !important; }
+            #student-modal .action-btn span:last-child { font-size: 12px !important; }
+        }
+
+        /* Schermi Full HD e oltre (>=1920px) */
+        @media (min-width: 1920px) {
+            .classroom-layout { gap: 3.5rem; }
+            .desk-pair { gap: 1.25rem; }
+            #classroom-container > :not(:first-child) { margin-top: 1.5rem !important; }
+
+            .student-card { min-height: 170px; padding: 1.5rem; }
+            .student-card .student-name { font-size: 1.75rem; margin-bottom: 0.75rem; }
+            .student-card .stamp-dot-card { width: 18px; height: 18px; }
+            .student-card .stamp-visual { gap: 5px; }
+            .student-card .card-footer { font-size: 16px; }
+            .student-card .card-footer b { font-size: 19px; }
+            .stamp-dot { width: 18px; height: 18px; }
+
+            header h1 { font-size: 2rem !important; }
+            header button { font-size: 1rem; }
+            .legend-bar { font-size: 1rem !important; }
+
+            #student-modal > div { max-width: 32rem !important; padding: 2rem !important; }
+            #student-modal .action-btn { height: 8rem !important; }
+            #student-modal .action-btn span:last-child { font-size: 14px !important; }
+        }
+
+        /* ===== MODALITÀ PRESENTAZIONE LIM ===== */
+        .lim-mode .admin-only { display: none !important; }
+        .lim-mode .legend-bar { display: none !important; }
+        .lim-mode #app { max-width: 100% !important; padding-left: 2.5rem; padding-right: 2.5rem; }
+        .lim-mode header { margin-bottom: 0.75rem; }
+        .lim-mode header > div:first-child p { display: none; }
+
+        /* Presentazione: contrasto alto e carte enfatizzate */
+        .lim-mode .student-card {
+            border-color: #94a3b8;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .lim-mode .student-card:not(.empty-desk):not(.off-seat) {
+            background-color: #ffffff;
+        }
+        .lim-mode .student-card .student-name {
+            color: #0f172a;
+            font-weight: 800;
+        }
+        .lim-mode .student-card .card-footer b {
+            color: #4338ca;
+            font-weight: 800;
+        }
+
+        /* Bottone uscita presentazione (angolo basso-sinistra, discreto) */
+        .lim-exit-btn {
+            position: fixed;
+            bottom: 1rem;
+            left: 1rem;
+            z-index: 40;
+            opacity: 0.25;
+            transition: opacity 0.3s;
+            cursor: pointer;
+        }
+        .lim-exit-btn:hover { opacity: 1; }
+
+        /* Presentazione su schermi LIM */
+        @media (min-width: 1600px) {
+            .lim-mode #app { padding-left: 3rem; padding-right: 3rem; }
+            .lim-mode .student-card { min-height: 165px; }
+            .lim-mode .student-card .student-name { font-size: 1.7rem; }
+            .lim-mode .student-card .card-footer { font-size: 15px; }
+        }
+        @media (min-width: 1920px) {
+            .lim-mode #app { padding-left: 3.5rem; padding-right: 3.5rem; }
+            .lim-mode .student-card { min-height: 185px; }
+            .lim-mode .student-card .student-name { font-size: 2rem; }
+            .lim-mode .student-card .card-footer { font-size: 17px; }
+        }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-900 font-sans">
@@ -151,23 +265,26 @@
             </div>
 
             <div class="flex flex-wrap gap-2">
+                <button id="lim-toggle-btn" onclick="toggleLimMode()" class="px-3 py-2 bg-cyan-50 border border-cyan-200 text-cyan-700 hover:bg-cyan-100 rounded-lg text-sm font-medium transition flex items-center gap-1">
+                    🖥️ Modalità LIM
+                </button>
                 <button onclick="app.showRankings()" class="px-3 py-2 bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 rounded-lg text-sm font-medium transition flex items-center gap-1">
                     🏅 Classifiche
                 </button>
-                <button onclick="app.printReport()" class="px-3 py-2 bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 rounded-lg text-sm font-medium transition flex items-center gap-1">
+                <button onclick="app.printReport()" class="admin-only px-3 py-2 bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 rounded-lg text-sm font-medium transition flex items-center gap-1">
                     🖨️ Report
                 </button>
-                <button onclick="app.confirmReset()" class="px-3 py-2 bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 rounded-lg text-sm font-medium transition">
+                <button onclick="app.confirmReset()" class="admin-only px-3 py-2 bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 rounded-lg text-sm font-medium transition">
                     ⚠️ Reset
                 </button>
-                <button onclick="handleLogout()" class="px-3 py-2 bg-slate-700 hover:bg-slate-800 text-white rounded-lg text-sm font-medium transition flex items-center gap-1">
+                <button onclick="handleLogout()" class="admin-only px-3 py-2 bg-slate-700 hover:bg-slate-800 text-white rounded-lg text-sm font-medium transition flex items-center gap-1">
                     🔒 Esci
                 </button>
             </div>
         </header>
 
         <!-- Legenda Compatta -->
-        <div class="mb-8 p-3 bg-white rounded-lg shadow-sm border border-slate-200 flex flex-wrap items-center gap-4 text-xs md:text-sm">
+        <div class="legend-bar mb-8 p-3 bg-white rounded-lg shadow-sm border border-slate-200 flex flex-wrap items-center gap-4 text-xs md:text-sm">
             <span class="font-bold text-slate-600">Legenda:</span>
             <div class="flex items-center gap-1"><span class="stamp-dot bg-silence"></span> Silenzio</div>
             <div class="flex items-center gap-1"><span class="stamp-dot bg-posture"></span> Postura</div>
@@ -180,6 +297,11 @@
         <div id="save-indicator" class="hidden fixed bottom-4 right-4 bg-green-600 text-white text-xs font-medium px-3 py-1.5 rounded-full shadow-lg z-40 transition-opacity duration-300">
             Salvato nel cloud
         </div>
+
+        <!-- Bottone uscita modalità presentazione (discreto, angolo basso-sinistra) -->
+        <button id="lim-exit-btn" onclick="toggleLimMode()" class="hidden lim-exit-btn bg-slate-800 text-white text-xs px-3 py-2 rounded-lg shadow-lg">
+            ✕ Esci da LIM
+        </button>
 
         <!-- Banner modalità scambio -->
         <div id="swap-banner" class="hidden mb-4 p-3 bg-violet-50 border-2 border-violet-300 rounded-lg text-center swap-banner">
@@ -572,19 +694,19 @@
                 }
 
                 const bonusNum = Math.floor(s.merits / 3);
-                const bonusStar = bonusNum > 0 ? `<span class="absolute top-1 right-1 text-yellow-500 drop-shadow-sm text-[10px] font-bold bg-yellow-50 px-1 rounded">+${(bonusNum * 0.5).toFixed(1)}</span>` : '';
-                const warningIcon = !s.atSeat ? '<span class="text-xs bg-red-100 text-red-600 px-1 rounded absolute top-1 right-1">FUORI</span>' : '';
+                const bonusStar = bonusNum > 0 ? `<span class="bonus-badge-card absolute top-1 right-1 text-yellow-500 drop-shadow-sm text-[10px] font-bold bg-yellow-50 px-1 rounded">+${(bonusNum * 0.5).toFixed(1)}</span>` : '';
+                const warningIcon = !s.atSeat ? '<span class="absence-badge text-xs bg-red-100 text-red-600 px-1 rounded absolute top-1 right-1">FUORI</span>' : '';
 
                 card.innerHTML = `
                     ${bonusStar}
                     ${warningIcon}
                     <div>
-                        <div class="font-bold text-slate-800 leading-tight text-sm mb-2 pr-4 truncate">${s.name}</div>
-                        <div class="flex gap-0.5 flex-wrap h-3 mb-1">
+                        <div class="student-name font-bold text-slate-800 leading-tight text-sm mb-2 pr-4 truncate">${s.name}</div>
+                        <div class="stamp-visual flex gap-0.5 flex-wrap h-3 mb-1">
                             ${this.generateStampVisuals(s.stamps)}
                         </div>
                     </div>
-                    <div class="text-[10px] text-slate-400 flex justify-between items-end border-t border-slate-50 pt-1 mt-1">
+                    <div class="card-footer text-[10px] text-slate-400 flex justify-between items-end border-t border-slate-50 pt-1 mt-1">
                         <span>Note: <b class="text-indigo-600">${s.merits}</b></span>
                         ${s.stamps === 4 ? '<span class="text-amber-500 font-bold animate-pulse">!</span>' : ''}
                     </div>
@@ -596,7 +718,7 @@
                 let html = '';
                 for (let i = 0; i < 5; i++) {
                     const color = i < count ? 'bg-indigo-500' : 'bg-slate-200';
-                    html += `<span class="w-2 h-2 rounded-full ${color}"></span>`;
+                    html += `<span class="stamp-dot-card w-2 h-2 rounded-full ${color}"></span>`;
                 }
                 return html;
             }
@@ -1016,6 +1138,29 @@
         }
 
         // =============================================
+        // MODALITÀ PRESENTAZIONE LIM
+        // =============================================
+        function toggleLimMode() {
+            const body = document.body;
+            body.classList.toggle('lim-mode');
+            const isLim = body.classList.contains('lim-mode');
+
+            document.getElementById('lim-exit-btn').classList.toggle('hidden', !isLim);
+            document.getElementById('lim-toggle-btn').innerHTML = isLim ? '🖥️ Esci LIM' : '🖥️ Modalità LIM';
+
+            localStorage.setItem('lim_mode', isLim ? '1' : '0');
+        }
+
+        function restoreLimMode() {
+            if (localStorage.getItem('lim_mode') === '1') {
+                document.body.classList.add('lim-mode');
+                document.getElementById('lim-exit-btn').classList.remove('hidden');
+                const toggleBtn = document.getElementById('lim-toggle-btn');
+                if (toggleBtn) toggleBtn.innerHTML = '🖥️ Esci LIM';
+            }
+        }
+
+        // =============================================
         // OSSERVATORE STATO AUTENTICAZIONE
         // =============================================
         let app = null;
@@ -1036,8 +1181,10 @@
 
                 loadingScreen.classList.add('hidden');
                 appDiv.classList.remove('hidden');
+                restoreLimMode();
             } else {
                 // Non autenticato: mostra login
+                document.body.classList.remove('lim-mode');
                 appDiv.classList.add('hidden');
                 loadingScreen.classList.add('hidden');
                 loginScreen.classList.remove('hidden');
