@@ -225,33 +225,12 @@
             .lim-mode .student-card .card-footer { font-size: 16px; }
         }
 
-        /* ===== VISTA PUBBLICA STUDENTI ===== */
-        #public-view .student-card {
-            border-color: #475569;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.4);
-            background-color: #ffffff;
-            cursor: default;
-        }
-        #public-view .student-card .student-name {
-            color: #0f172a;
-            font-weight: 800;
-        }
-        #public-view .student-card .card-footer { color: #475569; }
-        #public-view .student-card .card-footer b { color: #4338ca; font-weight: 800; }
-        #public-view .student-card.empty-desk {
-            background: transparent;
-            border-color: #334155;
-            opacity: 0.3;
-        }
-        #public-view .student-card.off-seat {
-            background-color: #1e293b;
-            border-color: #334155;
-            filter: none;
-        }
-        #public-view .student-card.off-seat .student-name { color: #94a3b8; }
-        @media (min-width: 1600px) {
-            #public-view { padding: 1.5rem 3rem; }
-        }
+        /* ===== VISTA PUBBLICA REPORT ===== */
+        #public-view table { border-collapse: separate; border-spacing: 0; }
+        #public-view th { position: sticky; top: 0; background-color: #0f172a; z-index: 1; }
+        #public-view .report-row:hover { background-color: rgba(51, 65, 85, 0.4); }
+        #public-view .stamp-bar { width: 3.5rem; height: 0.5rem; border-radius: 9999px; overflow: hidden; background-color: #334155; }
+        #public-view .stamp-bar-fill { height: 100%; border-radius: 9999px; }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-900 font-sans">
@@ -308,28 +287,25 @@
         <p class="text-slate-500 text-sm">Caricamento dati...</p>
     </div>
 
-    <!-- Vista Pubblica Studenti (solo lettura, sfondo scuro) -->
+    <!-- Vista Pubblica: Report Studenti (solo lettura) -->
     <div id="public-view" class="hidden min-h-screen bg-slate-900 print:hidden">
-        <div class="max-w-7xl mx-auto p-4 md:p-6" style="max-width: 92vw;">
-            <header class="mb-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
-                <div>
-                    <h1 class="text-xl font-bold text-slate-100">Gestione Classe</h1>
-                    <p class="text-slate-500 text-xs">Vista studenti &mdash; aggiornamento automatico</p>
-                </div>
-                <div class="flex items-center gap-3">
+        <div class="max-w-4xl mx-auto p-6 md:p-10">
+            <header class="mb-6 text-center">
+                <h1 class="text-2xl font-bold text-slate-100 mb-1">Report Classe</h1>
+                <div class="flex items-center justify-center gap-3">
                     <span id="public-refresh-indicator" class="text-xs text-slate-500"></span>
                     <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse" title="Connesso"></div>
                 </div>
             </header>
-            <div class="mb-4 p-2.5 bg-slate-800 rounded-lg flex flex-wrap items-center gap-4 text-xs text-slate-300">
-                <span class="font-bold text-slate-400">Legenda:</span>
-                <div class="flex items-center gap-1"><span class="stamp-dot bg-silence"></span> Silenzio</div>
-                <div class="flex items-center gap-1"><span class="stamp-dot bg-posture"></span> Postura</div>
-                <div class="flex items-center gap-1"><span class="stamp-dot bg-work"></span> Lavoro</div>
-                <div class="text-slate-500">5 Timbri = 1 Nota</div>
+            <div class="mb-5 p-2.5 bg-slate-800 rounded-lg flex flex-wrap items-center justify-center gap-4 text-xs text-slate-300">
+                <div class="flex items-center gap-1"><span class="stamp-dot bg-silence"></span> S = Silenzio</div>
+                <div class="flex items-center gap-1"><span class="stamp-dot bg-posture"></span> P = Postura</div>
+                <div class="flex items-center gap-1"><span class="stamp-dot bg-work"></span> L = Lavoro</div>
+                <div class="text-slate-500 hidden md:block">|</div>
+                <div class="text-slate-500">5 Timbri = 1 Nota &middot; 3 Note = +0.5 Bonus</div>
             </div>
-            <div id="public-classroom-container" class="space-y-4">
-                <!-- Generato via JS -->
+            <div id="public-report-content">
+                <!-- Tabella generata via JS -->
             </div>
         </div>
     </div>
@@ -1328,24 +1304,92 @@
         const urlParams = new URLSearchParams(window.location.search);
         const publicViewId = urlParams.get('view');
 
+        function renderPublicReport(students) {
+            const container = document.getElementById('public-report-content');
+            const active = students
+                .filter(s => s.name && s.name !== '' && !s.isPlaceholder)
+                .sort((a, b) => a.name.localeCompare(b.name));
+
+            if (active.length === 0) {
+                container.innerHTML = '<p class="text-slate-500 text-center py-12">Nessun dato disponibile.</p>';
+                return;
+            }
+
+            let html = '<div class="overflow-x-auto rounded-xl bg-slate-800/50 border border-slate-700">';
+            html += '<table class="w-full text-left">';
+            html += '<thead><tr class="border-b border-slate-700 text-slate-400 text-[11px] uppercase tracking-wider">';
+            html += '<th class="py-3 px-3 w-8">#</th>';
+            html += '<th class="py-3 px-3">Studente</th>';
+            html += '<th class="py-3 px-3 text-center">Timbri</th>';
+            html += '<th class="py-3 px-3 text-center">Note</th>';
+            html += '<th class="py-3 px-3 text-center">S</th>';
+            html += '<th class="py-3 px-3 text-center">P</th>';
+            html += '<th class="py-3 px-3 text-center">L</th>';
+            html += '<th class="py-3 px-3 text-center">Bonus</th>';
+            html += '</tr></thead><tbody>';
+
+            active.forEach((s, i) => {
+                const bonusNum = Math.floor((s.merits || 0) / 3);
+                const bonusText = bonusNum > 0 ? '+' + (bonusNum * 0.5).toFixed(1) : '-';
+                const stampPct = ((s.stamps || 0) / 5) * 100;
+                const barColor = s.stamps === 4 ? 'bg-amber-500' : 'bg-indigo-500';
+
+                html += '<tr class="report-row border-b border-slate-800/60 transition">';
+                html += '<td class="py-3 px-3 text-slate-500 text-sm">' + (i + 1) + '</td>';
+                html += '<td class="py-3 px-3 text-slate-100 font-semibold text-sm">' + s.name + '</td>';
+                html += '<td class="py-3 px-3"><div class="flex items-center justify-center gap-2">';
+                html += '<div class="stamp-bar"><div class="stamp-bar-fill ' + barColor + '" style="width:' + stampPct + '%"></div></div>';
+                html += '<span class="text-xs text-slate-300 w-7 text-right">' + (s.stamps || 0) + '/5</span>';
+                html += '</div></td>';
+                html += '<td class="py-3 px-3 text-center text-lg font-bold text-indigo-400">' + (s.merits || 0) + '</td>';
+                html += '<td class="py-3 px-3 text-center text-sm text-blue-400">' + (s.silenceCount || 0) + '</td>';
+                html += '<td class="py-3 px-3 text-center text-sm text-emerald-400">' + (s.postureCount || 0) + '</td>';
+                html += '<td class="py-3 px-3 text-center text-sm text-amber-400">' + (s.workCount || 0) + '</td>';
+                html += '<td class="py-3 px-3 text-center text-sm font-bold ' + (bonusNum > 0 ? 'text-green-400' : 'text-slate-600') + '">' + bonusText + '</td>';
+                html += '</tr>';
+            });
+
+            html += '</tbody></table></div>';
+
+            // Riepilogo
+            const totalMerits = active.reduce((sum, s) => sum + (s.merits || 0), 0);
+            const totalBonus = active.reduce((sum, s) => sum + Math.floor((s.merits || 0) / 3) * 0.5, 0);
+            const studentsWithBonus = active.filter(s => (s.merits || 0) >= 3).length;
+
+            html += '<div class="mt-4 p-3 bg-slate-800/50 border border-slate-700 rounded-lg text-xs text-slate-400 text-center">';
+            html += active.length + ' studenti &middot; ' + totalMerits + ' note di merito';
+            if (studentsWithBonus > 0) {
+                html += ' &middot; ' + studentsWithBonus + ' con bonus (totale +' + totalBonus.toFixed(1) + ')';
+            }
+            html += '</div>';
+
+            container.innerHTML = html;
+        }
+
+        async function loadPublicData(viewId) {
+            try {
+                const doc = await db.collection('public_reports').doc(viewId).get();
+                if (doc.exists && doc.data().students) {
+                    return doc.data().students;
+                }
+            } catch (err) {
+                console.error('Errore caricamento report pubblico:', err);
+            }
+            return null;
+        }
+
         async function initPublicView(viewId) {
-            // Nascondi tutto tranne loading
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('loading-screen').classList.remove('hidden');
 
-            const publicApp = new ClassroomApp(viewId, {
-                readOnly: true,
-                containerId: 'public-classroom-container'
-            });
-
-            const success = await publicApp.loadData();
+            const students = await loadPublicData(viewId);
 
             document.getElementById('loading-screen').classList.add('hidden');
 
-            if (success && publicApp.students.length > 0) {
+            if (students && students.length > 0) {
                 document.getElementById('public-view').classList.remove('hidden');
+                renderPublicReport(students);
 
-                // Mostra timestamp
                 const updateTime = () => {
                     const now = new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
                     document.getElementById('public-refresh-indicator').textContent = 'Aggiornato alle ' + now;
@@ -1354,8 +1398,11 @@
 
                 // Auto-refresh ogni 30 secondi
                 setInterval(async () => {
-                    await publicApp.loadData();
-                    updateTime();
+                    const fresh = await loadPublicData(viewId);
+                    if (fresh) {
+                        renderPublicReport(fresh);
+                        updateTime();
+                    }
                 }, 30000);
             } else {
                 document.getElementById('public-error').classList.remove('hidden');
