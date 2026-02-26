@@ -494,9 +494,12 @@
                 </div>
 
                 <!-- Timbri di oggi -->
-                <div id="modal-today-stamps" class="hidden">
-                    <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Timbri di oggi</div>
-                    <div id="modal-today-list" class="space-y-1"></div>
+                <div id="modal-stamp-history" class="hidden">
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Storico Timbri</span>
+                        <span id="modal-stamp-total" class="text-[10px] text-slate-400"></span>
+                    </div>
+                    <div id="modal-stamp-history-list" class="max-h-40 overflow-y-auto space-y-2 text-xs"></div>
                 </div>
             </div>
         </div>
@@ -638,6 +641,22 @@
                     if (s.workCount === undefined) s.workCount = 0;
                     if (s.lastStampType === undefined) s.lastStampType = null;
                     if (!Array.isArray(s.stampLog)) s.stampLog = [];
+
+                    // Migrazione: ricostruisci stampLog dai contatori esistenti
+                    if (s.stampLog.length === 0) {
+                        const total = (s.silenceCount || 0) + (s.postureCount || 0) + (s.workCount || 0);
+                        if (total > 0) {
+                            for (let i = 0; i < (s.silenceCount || 0); i++) {
+                                s.stampLog.push({ type: 'silence', ts: null });
+                            }
+                            for (let i = 0; i < (s.postureCount || 0); i++) {
+                                s.stampLog.push({ type: 'posture', ts: null });
+                            }
+                            for (let i = 0; i < (s.workCount || 0); i++) {
+                                s.stampLog.push({ type: 'work', ts: null });
+                            }
+                        }
+                    }
                 });
             }
 
@@ -843,10 +862,14 @@
 
             formatStampEntry(entry) {
                 const typeLabels = { silence: '🤫 Silenzio', posture: '🪑 Postura', work: '📝 Lavoro' };
+                if (!entry.ts) {
+                    return { label: typeLabels[entry.type] || entry.type, time: '-', date: 'pre-migrazione', fullDate: 'pre-migrazione' };
+                }
                 const d = new Date(entry.ts);
                 const time = d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
                 const date = d.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' });
-                return { label: typeLabels[entry.type] || entry.type, time, date };
+                const fullDate = d.toLocaleDateString('it-IT', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' });
+                return { label: typeLabels[entry.type] || entry.type, time, date, fullDate };
             }
 
             openModal(id) {
@@ -936,22 +959,50 @@
                     }
                 });
 
-                // Timbri di oggi nel modale
-                const todaySection = document.getElementById('modal-today-stamps');
-                const todayList = document.getElementById('modal-today-list');
-                const todayStamps = this.getTodayStamps(s);
-                if (todayStamps.length > 0 && !isEmpty) {
-                    todaySection.classList.remove('hidden');
-                    todayList.innerHTML = todayStamps.map(e => {
-                        const info = this.formatStampEntry(e);
-                        return `<div class="flex items-center justify-between bg-slate-50 px-2 py-1 rounded text-xs">
-                            <span>${info.label}</span>
-                            <span class="text-slate-400">${info.time}</span>
-                        </div>`;
-                    }).join('');
+                // Storico timbri completo nel modale
+                const historySection = document.getElementById('modal-stamp-history');
+                const historyList = document.getElementById('modal-stamp-history-list');
+                const log = Array.isArray(s.stampLog) ? s.stampLog : [];
+                if (log.length > 0 && !isEmpty) {
+                    historySection.classList.remove('hidden');
+                    document.getElementById('modal-stamp-total').textContent = log.length + ' timbr' + (log.length === 1 ? 'o' : 'i');
+
+                    // Raggruppa per giorno (ordine cronologico inverso)
+                    const groups = {};
+                    const today = new Date().toISOString().slice(0, 10);
+                    log.slice().reverse().forEach(e => {
+                        const key = e.ts ? new Date(e.ts).toISOString().slice(0, 10) : '_pre';
+                        if (!groups[key]) groups[key] = [];
+                        groups[key].push(e);
+                    });
+
+                    let html = '';
+                    for (const [key, entries] of Object.entries(groups)) {
+                        let dayLabel;
+                        if (key === '_pre') {
+                            dayLabel = 'Pre-migrazione';
+                        } else if (key === today) {
+                            dayLabel = 'Oggi';
+                        } else {
+                            const d = new Date(key);
+                            dayLabel = d.toLocaleDateString('it-IT', { weekday: 'short', day: '2-digit', month: 'short' });
+                        }
+                        const isToday = key === today;
+                        html += `<div class="${isToday ? 'bg-green-50 border border-green-100' : 'bg-slate-50'} rounded-lg p-2">`;
+                        html += `<div class="font-semibold text-slate-600 mb-1 ${isToday ? 'text-green-700' : ''}">${dayLabel} <span class="font-normal text-slate-400">(${entries.length})</span></div>`;
+                        entries.forEach(e => {
+                            const info = this.formatStampEntry(e);
+                            html += `<div class="flex items-center justify-between py-0.5">
+                                <span>${info.label}</span>
+                                <span class="text-slate-400">${info.time}</span>
+                            </div>`;
+                        });
+                        html += '</div>';
+                    }
+                    historyList.innerHTML = html;
                 } else {
-                    todaySection.classList.add('hidden');
-                    todayList.innerHTML = '';
+                    historySection.classList.add('hidden');
+                    historyList.innerHTML = '';
                 }
             }
 
@@ -1153,9 +1204,7 @@
                             historyHtml += '<tr style="background: #f0f0f0;"><th style="text-align: left; padding: 3px 6px;">#</th><th style="text-align: left; padding: 3px 6px;">Tipo</th><th style="text-align: left; padding: 3px 6px;">Data</th><th style="text-align: left; padding: 3px 6px;">Ora</th></tr>';
                             s.stampLog.forEach((entry, i) => {
                                 const info = this.formatStampEntry(entry);
-                                const d = new Date(entry.ts);
-                                const dateStr = d.toLocaleDateString('it-IT', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' });
-                                historyHtml += `<tr style="border-bottom: 1px solid #eee;"><td style="padding: 2px 6px;">${i + 1}</td><td style="padding: 2px 6px;">${info.label}</td><td style="padding: 2px 6px;">${dateStr}</td><td style="padding: 2px 6px;">${info.time}</td></tr>`;
+                                historyHtml += `<tr style="border-bottom: 1px solid #eee;"><td style="padding: 2px 6px;">${i + 1}</td><td style="padding: 2px 6px;">${info.label}</td><td style="padding: 2px 6px;">${info.fullDate}</td><td style="padding: 2px 6px;">${info.time}</td></tr>`;
                             });
                             historyHtml += '</table></div>';
                         });
@@ -1467,15 +1516,17 @@
                 if (hasLog) {
                     html += '<tr id="' + rowId + '" class="hidden"><td colspan="8" class="px-3 pb-3 pt-0">';
                     html += '<div class="bg-slate-900/50 rounded-lg p-2 ml-6 text-xs">';
-                    const typeLabels = { silence: '🤫 Silenzio', posture: '🪑 Postura', work: '📝 Lavoro' };
                     s.stampLog.forEach(entry => {
-                        const d = new Date(entry.ts);
-                        const dateStr = d.toLocaleDateString('it-IT', { weekday: 'short', day: '2-digit', month: '2-digit' });
-                        const timeStr = d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+                        const typeLabels = { silence: '🤫 Silenzio', posture: '🪑 Postura', work: '📝 Lavoro' };
                         const label = typeLabels[entry.type] || entry.type;
+                        let dateTimeStr = 'pre-migrazione';
+                        if (entry.ts) {
+                            const d = new Date(entry.ts);
+                            dateTimeStr = d.toLocaleDateString('it-IT', { weekday: 'short', day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+                        }
                         html += '<div class="flex justify-between py-0.5 border-b border-slate-800 last:border-0">';
                         html += '<span class="text-slate-300">' + label + '</span>';
-                        html += '<span class="text-slate-500">' + dateStr + ' ' + timeStr + '</span>';
+                        html += '<span class="text-slate-500">' + dateTimeStr + '</span>';
                         html += '</div>';
                     });
                     html += '</div></td></tr>';
