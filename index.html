@@ -863,7 +863,7 @@
             formatStampEntry(entry) {
                 const typeLabels = { silence: '🤫 Silenzio', posture: '🪑 Postura', work: '📝 Lavoro' };
                 if (!entry.ts) {
-                    return { label: typeLabels[entry.type] || entry.type, time: '-', date: 'pre-migrazione', fullDate: 'pre-migrazione' };
+                    return { label: typeLabels[entry.type] || entry.type, time: '-', date: 'fino al 25 febbraio', fullDate: 'fino al 25 febbraio' };
                 }
                 const d = new Date(entry.ts);
                 const time = d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
@@ -980,7 +980,7 @@
                     for (const [key, entries] of Object.entries(groups)) {
                         let dayLabel;
                         if (key === '_pre') {
-                            dayLabel = 'Pre-migrazione';
+                            dayLabel = 'Fino al 25 febbraio';
                         } else if (key === today) {
                             dayLabel = 'Oggi';
                         } else {
@@ -1519,7 +1519,7 @@
                     s.stampLog.forEach(entry => {
                         const typeLabels = { silence: '🤫 Silenzio', posture: '🪑 Postura', work: '📝 Lavoro' };
                         const label = typeLabels[entry.type] || entry.type;
-                        let dateTimeStr = 'pre-migrazione';
+                        let dateTimeStr = 'fino al 25 febbraio';
                         if (entry.ts) {
                             const d = new Date(entry.ts);
                             dateTimeStr = d.toLocaleDateString('it-IT', { weekday: 'short', day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
