@@ -231,6 +231,47 @@
         #public-view .report-row:hover { background-color: rgba(51, 65, 85, 0.4); }
         #public-view .stamp-bar { width: 3.5rem; height: 0.5rem; border-radius: 9999px; overflow: hidden; background-color: #334155; }
         #public-view .stamp-bar-fill { height: 100%; border-radius: 9999px; }
+
+        /* ===== QUICK STAMP VIEW ===== */
+        .quick-stamp-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.5rem;
+        }
+        @media (min-width: 640px) {
+            .quick-stamp-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+        @media (min-width: 1024px) {
+            .quick-stamp-grid { grid-template-columns: repeat(4, 1fr); }
+        }
+        @media (min-width: 1280px) {
+            .quick-stamp-grid { grid-template-columns: repeat(5, 1fr); }
+        }
+        .quick-card {
+            transition: all 0.15s ease;
+            cursor: pointer;
+            user-select: none;
+        }
+        .quick-card:active { transform: scale(0.96); }
+        .quick-card.flash-success { animation: flashGreen 0.5s ease; }
+        .quick-card.flash-undo { animation: flashRed 0.5s ease; }
+        @keyframes flashGreen {
+            0%, 100% { box-shadow: none; }
+            30% { box-shadow: 0 0 0 3px #22c55e; background-color: #dcfce7; }
+        }
+        @keyframes flashRed {
+            0%, 100% { box-shadow: none; }
+            30% { box-shadow: 0 0 0 3px #ef4444; background-color: #fee2e2; }
+        }
+        .stamp-type-btn {
+            transition: all 0.15s ease;
+            border: 2px solid transparent;
+        }
+        .stamp-type-btn.active { transform: scale(1.05); font-weight: 700; }
+        .stamp-type-btn.active-silence { border-color: #3b82f6; background-color: #dbeafe !important; }
+        .stamp-type-btn.active-posture { border-color: #10b981; background-color: #d1fae5 !important; }
+        .stamp-type-btn.active-work { border-color: #f59e0b; background-color: #fef3c7 !important; }
+        .stamp-type-btn.active-undo { border-color: #ef4444; background-color: #fee2e2 !important; }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-900 font-sans">
@@ -363,6 +404,27 @@
             <div class="flex items-center gap-1"><span class="stamp-dot bg-work"></span> Lavoro</div>
             <div class="hidden md:block w-px h-4 bg-slate-300 mx-2"></div>
             <div class="text-slate-500">5 Timbri = 1 Nota ⭐ | 3 Note = +0.5 Bonus 🎓</div>
+        </div>
+
+        <!-- Barra selezione timbri rapida -->
+        <div id="stamp-selector" class="hidden mb-4 p-3 bg-white rounded-xl shadow-sm border border-slate-200 sticky top-0 z-30">
+            <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-xs font-bold text-slate-500 uppercase tracking-wider mr-1">Timbro:</span>
+                <button onclick="app.selectStampType('silence')" id="quick-btn-silence" class="stamp-type-btn px-4 py-3 bg-blue-50 text-blue-700 rounded-lg text-sm font-semibold flex items-center gap-1.5 hover:bg-blue-100">
+                    🤫 Silenzio
+                </button>
+                <button onclick="app.selectStampType('posture')" id="quick-btn-posture" class="stamp-type-btn px-4 py-3 bg-emerald-50 text-emerald-700 rounded-lg text-sm font-semibold flex items-center gap-1.5 hover:bg-emerald-100">
+                    🪑 Postura
+                </button>
+                <button onclick="app.selectStampType('work')" id="quick-btn-work" class="stamp-type-btn px-4 py-3 bg-amber-50 text-amber-700 rounded-lg text-sm font-semibold flex items-center gap-1.5 hover:bg-amber-100">
+                    📝 Lavoro
+                </button>
+                <div class="w-px h-8 bg-slate-200 mx-1 hidden sm:block"></div>
+                <button onclick="app.selectStampType('undo')" id="quick-btn-undo" class="stamp-type-btn px-4 py-3 bg-slate-50 text-slate-600 rounded-lg text-sm font-medium flex items-center gap-1.5 hover:bg-red-50 hover:text-red-600">
+                    ↩ Annulla
+                </button>
+            </div>
+            <p id="stamp-selector-hint" class="text-xs text-slate-400 mt-2">Seleziona un tipo di timbro, poi tocca gli studenti per assegnarlo</p>
         </div>
 
         <!-- Indicatore salvataggio cloud -->
@@ -628,6 +690,7 @@
                 this.activeStudentId = null;
                 this.swapMode = false;
                 this.swapSourceId = null;
+                this.quickStampType = null;
                 this.readOnly = options.readOnly || false;
                 this.containerId = options.containerId || 'classroom-container';
                 this.sharingEnabled = localStorage.getItem('sharing_enabled') === '1';
@@ -710,7 +773,7 @@
                 }
 
                 this.ensureFields();
-                this.renderMap();
+                this.render();
                 if (!this.readOnly) this.setupEventListeners();
                 return true;
             }
@@ -756,7 +819,7 @@
             }
 
             save() {
-                this.renderMap();
+                this.render();
                 // Salva nel cloud (fire and forget - la UI si aggiorna subito)
                 this.saveToFirestore();
             }
@@ -1115,14 +1178,14 @@
                 this.closeModal();
                 document.getElementById('swap-banner').classList.remove('hidden');
                 document.getElementById('swap-student-name').textContent = s.name || 'Posto vuoto';
-                this.renderMap();
+                this.render();
             }
 
             cancelSwap() {
                 this.swapMode = false;
                 this.swapSourceId = null;
                 document.getElementById('swap-banner').classList.add('hidden');
-                this.renderMap();
+                this.render();
             }
 
             executeSwap(targetId) {
@@ -1265,7 +1328,7 @@
                 byTotal.forEach((s, i) => {
                     const total = s.merits * 5 + s.stamps;
                     const pct = maxTotal > 0 ? (total / maxTotal) * 100 : 0;
-                    const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `<span class="text-xs text-slate-400 w-5 inline-block text-center">${i + 1}</span>`;
+                    const medal = (total > 0 && total === maxTotal) ? '🥇' : `<span class="text-xs text-slate-400 w-5 inline-block text-center">${i + 1}</span>`;
                     html += `<div class="flex items-center gap-2">
                         <span class="ranking-medal w-5 text-center">${medal}</span>
                         <span class="text-xs font-medium w-24 truncate">${s.name}</span>
@@ -1285,7 +1348,7 @@
                 html += '<div class="space-y-1.5">';
                 byMerits.forEach((s, i) => {
                     const pct = maxMerits > 0 ? (s.merits / maxMerits) * 100 : 0;
-                    const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `<span class="text-xs text-slate-400 w-5 inline-block text-center">${i + 1}</span>`;
+                    const medal = (s.merits > 0 && s.merits === maxMerits) ? '🥇' : `<span class="text-xs text-slate-400 w-5 inline-block text-center">${i + 1}</span>`;
                     html += `<div class="flex items-center gap-2">
                         <span class="ranking-medal w-5 text-center">${medal}</span>
                         <span class="text-xs font-medium w-24 truncate">${s.name}</span>
@@ -1304,9 +1367,11 @@
                 if (withBonus.length > 0) {
                     html += '<h3 class="text-sm font-bold text-slate-700 mt-5 mb-2">Bonus ottenuti</h3>';
                     html += '<div class="space-y-1.5">';
+                    const topBonus = Math.floor(withBonus[0].merits / 3);
                     withBonus.forEach((s, i) => {
-                        const bonus = (Math.floor(s.merits / 3) * 0.5).toFixed(1);
-                        const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `<span class="text-xs text-slate-400 w-5 inline-block text-center">${i + 1}</span>`;
+                        const bonusNum = Math.floor(s.merits / 3);
+                        const bonus = (bonusNum * 0.5).toFixed(1);
+                        const medal = (bonusNum === topBonus) ? '🥇' : `<span class="text-xs text-slate-400 w-5 inline-block text-center">${i + 1}</span>`;
                         html += `<div class="flex items-center gap-2">
                             <span class="ranking-medal w-5 text-center">${medal}</span>
                             <span class="text-xs font-medium w-24 truncate">${s.name}</span>
@@ -1411,7 +1476,7 @@
                 sorted.forEach((s, i) => {
                     const val = s[info.field] || 0;
                     const pct = maxVal > 0 ? (val / maxVal) * 100 : 0;
-                    const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `<span class="text-xs text-slate-400 w-5 inline-block text-center">${i + 1}</span>`;
+                    const medal = (val > 0 && val === maxVal) ? '🥇' : `<span class="text-xs text-slate-400 w-5 inline-block text-center">${i + 1}</span>`;
                     html += `<div class="flex items-center gap-2">
                         <span class="ranking-medal w-5 text-center">${medal}</span>
                         <span class="text-xs font-medium w-24 truncate">${s.name}</span>
@@ -1430,6 +1495,170 @@
 
                 return html;
             }
+
+            // ---- RENDER DISPATCHER ----
+            render() {
+                const isLim = document.body.classList.contains('lim-mode');
+                const legendBar = document.querySelector('.legend-bar');
+                const stampSelector = document.getElementById('stamp-selector');
+
+                if (isLim || this.readOnly || this.swapMode) {
+                    if (legendBar) legendBar.classList.toggle('hidden', isLim);
+                    if (stampSelector) stampSelector.classList.add('hidden');
+                    this.renderMap();
+                } else {
+                    if (legendBar) legendBar.classList.add('hidden');
+                    if (stampSelector) stampSelector.classList.remove('hidden');
+                    this.renderQuickView();
+                }
+            }
+
+            // ---- QUICK STAMP VIEW ----
+            selectStampType(type) {
+                this.quickStampType = this.quickStampType === type ? null : type;
+                this.updateStampSelectorUI();
+            }
+
+            updateStampSelectorUI() {
+                const types = ['silence', 'posture', 'work', 'undo'];
+                types.forEach(t => {
+                    const btn = document.getElementById(`quick-btn-${t}`);
+                    if (!btn) return;
+                    btn.classList.remove('active', 'active-silence', 'active-posture', 'active-work', 'active-undo');
+                    if (this.quickStampType === t) {
+                        btn.classList.add('active', `active-${t}`);
+                    }
+                });
+                const hint = document.getElementById('stamp-selector-hint');
+                if (hint) {
+                    if (!this.quickStampType) {
+                        hint.textContent = 'Seleziona un tipo di timbro, poi tocca gli studenti per assegnarlo';
+                        hint.className = 'text-xs text-slate-400 mt-2';
+                    } else if (this.quickStampType === 'undo') {
+                        hint.textContent = 'Tocca uno studente per annullare il suo ultimo timbro';
+                        hint.className = 'text-xs text-red-400 mt-2';
+                    } else {
+                        const labels = { silence: 'Silenzio 🤫', posture: 'Postura 🪑', work: 'Lavoro 📝' };
+                        hint.textContent = `Tocca gli studenti per assegnare: ${labels[this.quickStampType]}`;
+                        hint.className = 'text-xs text-indigo-500 mt-2 font-medium';
+                    }
+                }
+            }
+
+            quickStampAction(studentId) {
+                const s = this.students.find(x => x.id === studentId);
+                if (!s || s.isPlaceholder || !s.name) return;
+
+                if (!this.quickStampType) {
+                    this.openModal(studentId);
+                    return;
+                }
+
+                let flashType = 'success';
+
+                if (this.quickStampType === 'undo') {
+                    if (!s.lastStampType) return;
+                    if (s.stamps > 0) {
+                        s.stamps -= 1;
+                    } else if (s.merits > 0) {
+                        s.merits -= 1;
+                        s.stamps = 4;
+                    } else {
+                        return;
+                    }
+                    const typeKey = s.lastStampType + 'Count';
+                    if (s[typeKey] > 0) s[typeKey] -= 1;
+                    if (Array.isArray(s.stampLog) && s.stampLog.length > 0) s.stampLog.pop();
+                    s.lastStampType = null;
+                    flashType = 'undo';
+                } else {
+                    if (!s.atSeat) return;
+                    const type = this.quickStampType;
+                    s.stamps += 1;
+                    if (type === 'silence') s.silenceCount = (s.silenceCount || 0) + 1;
+                    else if (type === 'posture') s.postureCount = (s.postureCount || 0) + 1;
+                    else if (type === 'work') s.workCount = (s.workCount || 0) + 1;
+                    if (!Array.isArray(s.stampLog)) s.stampLog = [];
+                    s.stampLog.push({ type, ts: new Date().toISOString() });
+                    s.lastStampType = type;
+                    if (s.stamps >= 5) {
+                        s.stamps = 0;
+                        s.merits += 1;
+                    }
+                }
+
+                this.save();
+                this.flashCard(studentId, flashType);
+            }
+
+            flashCard(studentId, type) {
+                const card = document.querySelector(`[data-student-id="${studentId}"]`);
+                if (!card) return;
+                const cls = type === 'undo' ? 'flash-undo' : 'flash-success';
+                card.classList.remove('flash-success', 'flash-undo');
+                void card.offsetWidth;
+                card.classList.add(cls);
+                setTimeout(() => card.classList.remove(cls), 500);
+            }
+
+            renderQuickView() {
+                const container = document.getElementById(this.containerId);
+                container.innerHTML = '';
+
+                const active = this.students
+                    .filter(s => s.name && s.name !== '' && !s.isPlaceholder)
+                    .sort((a, b) => a.name.localeCompare(b.name));
+
+                const grid = document.createElement('div');
+                grid.className = 'quick-stamp-grid';
+
+                active.forEach(s => {
+                    const card = document.createElement('div');
+                    const isOffSeat = !s.atSeat;
+                    card.className = `quick-card p-3 rounded-lg border bg-white shadow-sm ${isOffSeat ? 'opacity-50 border-dashed border-slate-300' : 'border-slate-200 hover:border-indigo-300 hover:shadow-md'}`;
+                    card.setAttribute('data-student-id', s.id);
+                    card.onclick = () => this.quickStampAction(s.id);
+
+                    const todayStamps = this.getTodayStamps(s);
+                    const todayBadge = todayStamps.length > 0
+                        ? `<span class="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-medium">${todayStamps.length} oggi</span>`
+                        : '';
+
+                    const bonusNum = Math.floor(s.merits / 3);
+                    const bonusBadge = bonusNum > 0
+                        ? `<span class="text-[10px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-full font-bold">+${(bonusNum * 0.5).toFixed(1)}</span>`
+                        : '';
+
+                    const offBadge = isOffSeat
+                        ? `<span class="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full font-medium">FUORI</span>`
+                        : '';
+
+                    card.innerHTML = `
+                        <div class="flex items-start justify-between mb-2">
+                            <span class="font-bold text-slate-800 text-sm leading-tight truncate">${s.name}</span>
+                            <button onclick="event.stopPropagation(); app.openModal(${s.id})" class="text-slate-300 hover:text-indigo-500 transition ml-1 flex-shrink-0" title="Dettagli">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                                    <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                                    <path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533L8.93 6.588zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="flex gap-0.5 mb-2">
+                            ${this.generateStampVisuals(s.stamps)}
+                        </div>
+                        <div class="flex items-center justify-between gap-1 flex-wrap">
+                            <span class="text-[10px] text-slate-400">Note: <b class="text-indigo-600">${s.merits}</b></span>
+                            <div class="flex gap-1 flex-wrap">
+                                ${offBadge}${todayBadge}${bonusBadge}
+                            </div>
+                        </div>
+                    `;
+
+                    grid.appendChild(card);
+                });
+
+                container.appendChild(grid);
+            }
         }
 
         // =============================================
@@ -1444,6 +1673,7 @@
             document.getElementById('lim-toggle-btn').innerHTML = isLim ? '🖥️ Esci LIM' : '🖥️ Modalità LIM';
 
             localStorage.setItem('lim_mode', isLim ? '1' : '0');
+            if (app) app.render();
         }
 
         function restoreLimMode() {
@@ -1615,11 +1845,11 @@
                     appDiv.classList.add('hidden');
 
                     app = new ClassroomApp(user.uid);
+                    restoreLimMode();
                     await app.loadData();
 
                     loadingScreen.classList.add('hidden');
                     appDiv.classList.remove('hidden');
-                    restoreLimMode();
                     app.restoreSharingUI();
                 } else {
                     // Non autenticato: mostra login
